@@ -36,8 +36,7 @@ jobs:
 
       - name: Terraform Init
         # Tip: Dynamic state file name use kar rahe hain taaki environments overlap na ho
-        run: |
-          terraform init -backend-config="key=${{ github.event.inputs.target_env }}.tfstate"
+        run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Plan
@@ -82,7 +81,7 @@ jobs:
           path: ${{ github.workspace }}
 
       - name: Terraform Init
-        run: terraform init -backend-config="key=${{ github.event.inputs.target_env }}.tfstate"
+        run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Apply
