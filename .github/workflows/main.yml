@@ -80,7 +80,7 @@ jobs:
           path: ${{ github.workspace }}
 
       - name: Terraform Init
-        run:         run: terraform init
+        run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
         
       - name: Terraform Apply
