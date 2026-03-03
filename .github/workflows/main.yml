@@ -1,13 +1,13 @@
-name:  Multi-Env  infra Pipeline with manual gate 
+name: "Multi-Env Infra Pipeline with branch "
 
 on:
   workflow_dispatch:
     inputs:
       target_env:
-        description: "Select Environment (dev, uat, sit, dr, prod)"
+        description: "Select Environment (uat, sit, production)"
         required: true
         type: choice
-        options: [dev, uat, sit, dr, prod]
+        options: [uat, sit, production]
       working_directory:
         description: "Terraform folder path"
         required: true
@@ -21,21 +21,23 @@ jobs:
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     runs-on: [self-hosted, Windows]
+    if: github.ref_name == github.event.inputs.target_env
     environment: ${{ github.event.inputs.target_env }}
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      # Variable use karne ka tarika:
-      TF_VAR_env_name: ${{ vars.ENV_NAME }} 
+      TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Terraform Init
-        run: terraform init
+        # Tip: Dynamic state file name use kar rahe hain taaki environments overlap na ho
+        run: |
+          terraform init -backend-config="key=${{ github.event.inputs.target_env }}.tfstate"
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Plan
@@ -48,15 +50,15 @@ jobs:
           name: tf-plan-${{ github.event.inputs.target_env }}
           path: ${{ github.workspace }}\tfplan
 
-  
   manual_approval:
     name: "Wait for Approval: ${{ github.event.inputs.target_env }}"
     needs: terraform_plan
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.target_env }} 
+    # Yahan GitHub Environment ki protection settings (Reviewers) trigger hongi
+    environment: ${{ github.event.inputs.target_env }}
     steps:
       - name: Waiting
-        run: echo "Waiting for user to click 'Review deployments' button..."
+        run: echo "Waiting for user to click 'Review deployments' button for ${{ github.event.inputs.target_env }}..."
 
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
@@ -80,7 +82,7 @@ jobs:
           path: ${{ github.workspace }}
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend-config="key=${{ github.event.inputs.target_env }}.tfstate"
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Apply
