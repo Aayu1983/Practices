@@ -1,4 +1,4 @@
-name: "Multi-Env Infra Pipeline with branch "
+name: "Multi-Env Infra Pipeline"
 
 on:
   workflow_dispatch:
@@ -21,7 +21,6 @@ jobs:
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     runs-on: [self-hosted, Windows]
-    if: github.ref_name == github.event.inputs.target_env
     environment: ${{ github.event.inputs.target_env }}
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -31,14 +30,24 @@ jobs:
       TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Correct Branch
         uses: actions/checkout@v4
+        with:
+          # LOGIC: Production ke liye 'main', baaki ke liye unka apna naam (sit/uat)
+          ref: >-
+            ${{ 
+              github.event.inputs.target_env == 'production' && 'main' || 
+              github.event.inputs.target_env == 'sit' && 'sit' || 
+              github.event.inputs.target_env == 'uat' && 'uat' || 
+              github.ref 
+            }}
+
+      - name: Check Current Branch (Debug)
+        run: git branch --show-current
 
       - name: Terraform Init
-        # Tip: Dynamic state file name use kar rahe hain taaki environments overlap na ho
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
-      
 
       - name: Terraform Plan
         run: terraform plan -out="${{ github.workspace }}\tfplan"
@@ -71,8 +80,16 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Correct Branch
         uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ 
+              github.event.inputs.target_env == 'production' && 'main' || 
+              github.event.inputs.target_env == 'sit' && 'sit' || 
+              github.event.inputs.target_env == 'uat' && 'uat' || 
+              github.ref 
+            }}
 
       - name: Download Plan File
         uses: actions/download-artifact@v4
@@ -83,7 +100,6 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
-        
 
       - name: Terraform Apply
         run: terraform apply -auto-approve "${{ github.workspace }}\tfplan"
