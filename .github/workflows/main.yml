@@ -71,7 +71,8 @@ jobs:
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: manual_approval
-    runs-on: [self-hosted, Windows]    
+    runs-on: [self-hosted, Windows] 
+    environment: ${{ github.event.inputs.target_env }}
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
