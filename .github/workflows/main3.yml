@@ -41,14 +41,11 @@ jobs:
               github.ref 
             }}
 
-      - name: Terraform Init
-        shell: pwsh
+      - name: Terraform Init        
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Plan
-        shell: pwsh
-        # Windows par paths ke liye '/' use karein, GitHub handle kar leta hai
         run: terraform plan -out="${{ github.workspace }}/tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
 
@@ -62,8 +59,7 @@ jobs:
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: terraform_plan
-    runs-on: [self-hosted, Windows]
-    # NOTE: Environment protection (Manual Approval) yahan trigger hogi
+    runs-on: [self-hosted, Windows]    
     environment: ${{ github.event.inputs.target_env }}
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
