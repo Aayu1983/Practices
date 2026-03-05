@@ -1,4 +1,4 @@
-name: "Multi-Env Infra Pipeline"
+name: "Multi-Env Infra Pipeline without manual"
 
 on:
   workflow_dispatch:
@@ -89,13 +89,10 @@ jobs:
           name: tf-plan-${{ github.event.inputs.target_env }}
           path: ${{ github.workspace }}
 
-      - name: Terraform Init
-        shell: pwsh
+      - name: Terraform Init     
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
-      - name: Terraform Apply
-        shell: pwsh
-        # Workspace path ko double quotes mein rakha hai for safety
+      - name: Terraform Apply 
         run: terraform apply -auto-approve "${{ github.workspace }}/tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
