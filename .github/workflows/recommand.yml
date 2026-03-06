@@ -14,10 +14,8 @@ on:
         default: "rg"
 
 permissions:
-  id-token: write      # for OIDC (if you switch later)
+  id-token: write
   contents: read
-
-# Prevent two runs for the same environment at the same time
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.target_env }}
   cancel-in-progress: false
@@ -25,19 +23,15 @@ concurrency:
 jobs:
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
-    runs-on: [self-hosted, Windows]
-    env:
-      # Azure auth (must be repo-level secrets now that environments are removed)
+    runs-on: [self-hosted, Windows] 
+    environment: ${{ github.event.inputs.target_env }}
+    env:      
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-
-      # Terraform automation flags
       TF_INPUT: false
-      TF_IN_AUTOMATION: true
-
-      # Example TF var used by modules
+      TF_IN_AUTOMATION: true    
       TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
     steps:
@@ -51,26 +45,11 @@ jobs:
               github.event.inputs.target_env == 'uat' && 'uat' || 
               github.ref 
             }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
-
-      # (Optional) Cache to speed up plugin downloads
-      - name: Cache Terraform directories
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/.terraform
-            ${{ github.event.inputs.working_directory }}/.terraform
-          key: ${{ runner.os }}-terraform-${{ hashFiles(format('{0}/**/*.tf', github.event.inputs.working_directory)) }}
-
-      - name: Terraform Init
+      - name: Terraform Init    
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
-      - name: Terraform Validate
+      - name: Terraform Validate      
         run: terraform validate
         working-directory: ${{ github.event.inputs.working_directory }}
 
@@ -88,19 +67,16 @@ jobs:
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: terraform_plan
-    runs-on: [self-hosted, Windows]
+    runs-on: [self-hosted, Windows]   
+    environment: ${{ github.event.inputs.target_env }}
     env:
-      # Azure auth (must be repo-level secrets now that environments are removed)
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
-      # Terraform automation flags
       TF_INPUT: false
       TF_IN_AUTOMATION: true
-
-      # Keep TF vars consistent with plan
       TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
     steps:
@@ -120,17 +96,11 @@ jobs:
         with:
           name: tf-plan-${{ github.event.inputs.target_env }}
           path: ${{ github.workspace }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
-
-      - name: Terraform Init
+          
+      - name: Terraform Init        
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
-      - name: Terraform Apply
+      - name: Terraform Apply       
         run: terraform apply -auto-approve "${{ github.workspace }}/tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
-``
