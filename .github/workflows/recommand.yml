@@ -9,7 +9,7 @@ on:
         type: choice
         options: [uat, sit, production]
       working_directory:
-        description: "Terraform folder path (relative to repo root)"
+        description: "Terraform folder path "
         required: true
         default: "rg"
 
