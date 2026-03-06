@@ -45,6 +45,10 @@ jobs:
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ github.event.inputs.working_directory }}
+
       - name: Terraform Plan
         run: terraform plan -out="${{ github.workspace }}/tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
