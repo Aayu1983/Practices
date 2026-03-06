@@ -1,0 +1,136 @@
+name: "Multi-Env Infra Pipeline - No Manual"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment (uat, sit, production)"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path (relative to repo root)"
+        required: true
+        default: "rg"
+
+permissions:
+  id-token: write      # for OIDC (if you switch later)
+  contents: read
+
+# Prevent two runs for the same environment at the same time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.target_env }}
+  cancel-in-progress: false
+
+jobs:
+  terraform_plan:
+    name: "Plan - ${{ github.event.inputs.target_env }}"
+    runs-on: [self-hosted, Windows]
+    env:
+      # Azure auth (must be repo-level secrets now that environments are removed)
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      # Terraform automation flags
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+      # Example TF var used by modules
+      TF_VAR_env_name: ${{ vars.ENV_NAME }}
+
+    steps:
+      - name: Checkout Correct Branch
+        uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ 
+              github.event.inputs.target_env == 'production' && 'main' || 
+              github.event.inputs.target_env == 'sit' && 'sit' || 
+              github.event.inputs.target_env == 'uat' && 'uat' || 
+              github.ref 
+            }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      # (Optional) Cache to speed up plugin downloads
+      - name: Cache Terraform directories
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/.terraform
+            ${{ github.event.inputs.working_directory }}/.terraform
+          key: ${{ runner.os }}-terraform-${{ hashFiles(format('{0}/**/*.tf', github.event.inputs.working_directory)) }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Plan
+        run: terraform plan -out="${{ github.workspace }}/tfplan"
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Upload Plan File
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-plan-${{ github.event.inputs.target_env }}
+          path: ${{ github.workspace }}/tfplan
+          retention-days: 1
+
+  terraform_apply:
+    name: "Apply - ${{ github.event.inputs.target_env }}"
+    needs: terraform_plan
+    runs-on: [self-hosted, Windows]
+    env:
+      # Azure auth (must be repo-level secrets now that environments are removed)
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      # Terraform automation flags
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+      # Keep TF vars consistent with plan
+      TF_VAR_env_name: ${{ vars.ENV_NAME }}
+
+    steps:
+      - name: Checkout Correct Branch
+        uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ 
+              github.event.inputs.target_env == 'production' && 'main' || 
+              github.event.inputs.target_env == 'sit' && 'sit' || 
+              github.event.inputs.target_env == 'uat' && 'uat' || 
+              github.ref 
+            }}
+
+      - name: Download Plan File
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-plan-${{ github.event.inputs.target_env }}
+          path: ${{ github.workspace }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve "${{ github.workspace }}/tfplan"
+        working-directory: ${{ github.event.inputs.working_directory }}
+``
