@@ -1,4 +1,4 @@
-name: "Multi-Env Infra Pipeline with branch "
+name: "Multi-Env Infra Pipeline - No Manual"
 
 on:
   workflow_dispatch:
@@ -9,61 +9,65 @@ on:
         type: choice
         options: [uat, sit, production]
       working_directory:
-        description: "Terraform folder path"
+        description: "Terraform folder path (relative to repo root)"
         required: true
         default: "rg"
 
 permissions:
   id-token: write
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.target_env }}
+  cancel-in-progress: false
 
 jobs:
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
-    runs-on: [self-hosted, Windows]
-    if: github.ref_name == github.event.inputs.target_env
+    runs-on: [self-hosted, Windows] 
     environment: ${{ github.event.inputs.target_env }}
-    env:
+    env:      
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true    
       TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Correct Branch
         uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ 
+              github.event.inputs.target_env == 'production' && 'main' || 
+              github.event.inputs.target_env == 'sit' && 'sit' || 
+              github.event.inputs.target_env == 'uat' && 'uat' || 
+              github.ref 
+            }}
+      - name: Terraform Init    
+        run: terraform init
+        working-directory: ${{ github.event.inputs.working_directory }}
 
-      - name: Terraform Init
-        # Tip: Dynamic state file name use kar rahe hain taaki environments overlap na ho
-        run: |
-          terraform init -backend-config="key=${{ github.event.inputs.target_env }}.tfstate"
+      - name: Terraform Validate      
+        run: terraform validate
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Plan
-        run: terraform plan -out="${{ github.workspace }}\tfplan"
+        run: terraform plan -out="${{ github.workspace }}/tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Upload Plan File
         uses: actions/upload-artifact@v4
         with:
           name: tf-plan-${{ github.event.inputs.target_env }}
-          path: ${{ github.workspace }}\tfplan
-
-  manual_approval:
-    name: "Wait for Approval: ${{ github.event.inputs.target_env }}"
-    needs: terraform_plan
-    runs-on: ubuntu-latest
-    # Yahan GitHub Environment ki protection settings (Reviewers) trigger hongi
-    environment: ${{ github.event.inputs.target_env }}
-    steps:
-      - name: Waiting
-        run: echo "Waiting for user to click 'Review deployments' button for ${{ github.event.inputs.target_env }}..."
+          path: ${{ github.workspace }}/tfplan
+          retention-days: 1
 
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
-    needs: manual_approval
-    runs-on: [self-hosted, Windows]
+    needs: terraform_plan
+    runs-on: [self-hosted, Windows]   
     environment: ${{ github.event.inputs.target_env }}
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -71,20 +75,32 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+      TF_VAR_env_name: ${{ vars.ENV_NAME }}
+
     steps:
-      - name: Checkout Code
+      - name: Checkout Correct Branch
         uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ 
+              github.event.inputs.target_env == 'production' && 'main' || 
+              github.event.inputs.target_env == 'sit' && 'sit' || 
+              github.event.inputs.target_env == 'uat' && 'uat' || 
+              github.ref 
+            }}
 
       - name: Download Plan File
         uses: actions/download-artifact@v4
         with:
           name: tf-plan-${{ github.event.inputs.target_env }}
           path: ${{ github.workspace }}
-
-      - name: Terraform Init
-        run: terraform init -backend-config="key=${{ github.event.inputs.target_env }}.tfstate"
+          
+      - name: Terraform Init        
+        run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve "${{ github.workspace }}\tfplan"
+      - name: Terraform Apply       
+        run: terraform apply -auto-approve "${{ github.workspace }}/tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
