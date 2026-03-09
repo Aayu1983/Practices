@@ -1,4 +1,4 @@
-name: "Multi-Env Infra Pipeline - Aayush"
+name: "Multi-Env Infra Pipeline"
 
 on:
   workflow_dispatch:
