@@ -45,13 +45,7 @@ jobs:
               github.event.inputs.target_env == 'uat' && 'uat' || 
               github.ref 
             }}
-      - name: Check Folder Path (Debug)
-        run: |
-          echo "Current working directory is:"
-          pwd
-          echo "Listing files in current directory:"
-          ls -R
-        shell: powershell
+
       - name: Terraform Init    
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
