@@ -23,8 +23,8 @@ concurrency:
 jobs:
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
-    runs-on: [self-hosted, Windows] 
-    environment: ${{ github.event.inputs.target_env }}
+    runs-on: [windows-latest] 
+   # environment: ${{ github.event.inputs.target_env }}
     env:      
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
@@ -67,7 +67,7 @@ jobs:
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: terraform_plan
-    runs-on: [self-hosted, Windows]   
+    runs-on: [windows-latest]    
     environment: ${{ github.event.inputs.target_env }}
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
