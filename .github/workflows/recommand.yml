@@ -24,7 +24,7 @@ jobs:
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     runs-on: [self-hosted, Windows] 
-   # environment: ${{ github.event.inputs.target_env }}
+    environment: ${{ github.event.inputs.target_env }}
     env:      
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
