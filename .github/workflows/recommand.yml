@@ -11,7 +11,7 @@ on:
       working_directory:
         description: "Terraform folder path "
         required: true
-        default: "rg"
+        default: "dr/rg"
 
 permissions:
   id-token: write
