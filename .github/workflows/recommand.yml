@@ -1,4 +1,4 @@
-name: "Multi-Env Infra Pipeline"
+name: "Multi-Env Infra Pipeline Carrix"
 
 on:
   workflow_dispatch:
