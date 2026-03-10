@@ -103,5 +103,5 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Apply       
-        run: terraform apply -auto-approve "tfplan
+        run: terraform apply -auto-approve "tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
