@@ -96,12 +96,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tf-plan-${{ github.event.inputs.target_env }}
-          path: ${{ github.workspace }}
+          path: ${{ github.event.inputs.working_directory }}
           
       - name: Terraform Init        
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Apply       
-        run: terraform apply -auto-approve "${{ github.workspace }}/tfplan"
+        run: terraform apply -auto-approve "tfplan
         working-directory: ${{ github.event.inputs.working_directory }}
