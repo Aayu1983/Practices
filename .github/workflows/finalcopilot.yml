@@ -88,9 +88,6 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           terraform init
-          # (Optional) Workspaces per env:
-          # terraform workspace select ${{ github.event.inputs.target_env }} `
-          #   || terraform workspace new ${{ github.event.inputs.target_env }}
 
       - name: Terraform Plan
         shell: powershell
