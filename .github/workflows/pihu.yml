@@ -37,7 +37,7 @@ jobs:
     steps:
       - name: Determine Branch
         id: determine_branch
-        shell: pwsh
+        shell: powershell
         run: |
           $env_input = "${{ github.event.inputs.target_env }}"
           if ($env_input -eq "production") {
@@ -60,12 +60,12 @@ jobs:
           ref: ${{ needs.setup.outputs.selected_branch }}
 
       - name: Terraform Init
-        shell: pwsh
+        shell: powershell
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Plan
-        shell: pwsh
+        shell: powershell
         # Windows par path handling ke liye $env:GITHUB_WORKSPACE use karna better hai
         run: terraform plan -out="$env:GITHUB_WORKSPACE\tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
@@ -95,12 +95,12 @@ jobs:
           path: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Init
-        shell: pwsh
+        shell: powershell
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
       - name: Terraform Apply
-        shell: pwsh
+        shell: powershell
         # "tfplan" file wahi honi chahiye jahan working directory hai
         run: terraform apply -auto-approve "tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
