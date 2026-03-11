@@ -89,6 +89,13 @@ jobs:
         run: |
           terraform init
 
+      - name: Terraform Validate
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          terraform validate -no-color
+
+
       - name: Terraform Plan
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
