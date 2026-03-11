@@ -1,0 +1,106 @@
+name: "Multi-Env Infra Pipeline pihu"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment (uat, sit, production)"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "rg"
+
+permissions:
+  id-token: write
+  contents: read
+
+# Global Env Variables: Ek hi jagah define kar diye
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  TF_INPUT: false
+  TF_IN_AUTOMATION: true
+  TF_VAR_env_name: ${{ vars.ENV_NAME }}
+
+jobs:
+  # Logic Job: Branch decide karne ke liye
+  setup:
+    name: "Setup & Branch Logic"
+    runs-on: [self-hosted, Windows]
+    outputs:
+      selected_branch: ${{ steps.determine_branch.outputs.branch }}
+    steps:
+      - name: Determine Branch
+        id: determine_branch
+        shell: pwsh
+        run: |
+          $env_input = "${{ github.event.inputs.target_env }}"
+          if ($env_input -eq "production") {
+            echo "branch=main" >> $env:GITHUB_OUTPUT
+          } elseif ($env_input -eq "sit" -or $env_input -eq "uat") {
+            echo "branch=$env_input" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "branch=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+          }
+
+  terraform_plan:
+    name: "Plan - ${{ github.event.inputs.target_env }}"
+    needs: setup
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.selected_branch }}
+
+      - name: Terraform Init
+        shell: pwsh
+        run: terraform init
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Plan
+        shell: pwsh
+        # Windows par path handling ke liye $env:GITHUB_WORKSPACE use karna better hai
+        run: terraform plan -out="$env:GITHUB_WORKSPACE\tfplan"
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Upload Plan File
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-plan-${{ github.event.inputs.target_env }}
+          path: ${{ github.workspace }}\tfplan
+          retention-days: 1
+
+  terraform_apply:
+    name: "Apply - ${{ github.event.inputs.target_env }}"
+    needs: [setup, terraform_plan]
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.selected_branch }}
+
+      - name: Download Plan File
+        uses: actions/download-artifact@v4
+        with:
+          name: tf-plan-${{ github.event.inputs.target_env }}
+          path: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Init
+        shell: pwsh
+        run: terraform init
+        working-directory: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Apply
+        shell: pwsh
+        # "tfplan" file wahi honi chahiye jahan working directory hai
+        run: terraform apply -auto-approve "tfplan"
+        working-directory: ${{ github.event.inputs.working_directory }}
