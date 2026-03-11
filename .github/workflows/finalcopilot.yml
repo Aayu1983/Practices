@@ -1,4 +1,4 @@
-name: Terraform - Manual Environment Deploy
+name: Terraform - Manual Environment Deploy------A
 
 on:
   workflow_dispatch:
@@ -116,7 +116,6 @@ jobs:
       - name: Checkout Code (exact same commit as Plan)
         uses: actions/checkout@v4
         with:
-          # Plan & Apply drift ko eliminate karta hai
           ref: ${{ needs.terraform_plan.outputs.plan_commit_sha }}
 
       - name: Download Plan File
@@ -130,14 +129,10 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           terraform init
-          # (Optional) Workspaces per env:
-          # terraform workspace select ${{ github.event.inputs.target_env }} `
-          #   || terraform workspace new ${{ github.event.inputs.target_env }}
+       
 
       - name: Terraform Apply
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # "tfplan" file wahi honi chahiye jahan working directory hai
           terraform apply -auto-approve "tfplan"
-``
