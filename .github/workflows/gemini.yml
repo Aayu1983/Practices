@@ -72,7 +72,7 @@ jobs:
           terraform plan -out="tfplan.binary" 
 
       - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PLAN_ARTIFACT_NAME }}
           path: ${{ github.event.inputs.working_directory }}\tfplan.binary
@@ -91,7 +91,7 @@ jobs:
           ref: ${{ needs.terraform_plan.outputs.commit_sha }}
 
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ env.PLAN_ARTIFACT_NAME }}
           path: ${{ github.event.inputs.working_directory }}
