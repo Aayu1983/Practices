@@ -16,12 +16,8 @@ permissions:
   id-token: write
   contents: read
 
-# Global Env: Ye common hai saare jobs ke liye
+# Global Environment Variables
 env:
-  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
   TF_INPUT: false
   TF_IN_AUTOMATION: true
 
@@ -45,16 +41,21 @@ jobs:
     needs: setup
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
-    env:      
-      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}       
-      TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}          
+    env:
+      # FIX 1: Mapping TF variables to the correct Environment Secret names
+      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
+      
+      # FIX 2: Standard Azure Authentication variables
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -78,8 +79,11 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
+          # FIX 3: Dynamic Key added so environments don't overwrite each other
           terraform init `
             -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
+            -backend-config="key=${{ github.event.inputs.target_env }}.terraform.tfstate" `
+            -reconfigure `
             -input=false
           terraform validate
 
@@ -104,9 +108,14 @@ jobs:
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
     env:
-      # Apply ke waqt bhi variables zaroori hain
-      TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
+      # FIX 4: Adding full auth and variables to Apply job as well
+      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
     steps:
       - name: Checkout Code (Same Commit)
         uses: actions/checkout@v4
@@ -125,6 +134,8 @@ jobs:
         run: |
           terraform init `
             -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
+            -backend-config="key=${{ github.event.inputs.target_env }}.terraform.tfstate" `
+            -reconfigure `
             -input=false
 
       - name: Terraform Apply
