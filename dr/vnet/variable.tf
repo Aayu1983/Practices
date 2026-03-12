@@ -6,3 +6,4 @@ variable "Vnet" {
     resource_group_name = string
   }))
 }
+variable "subscription_id"{}
