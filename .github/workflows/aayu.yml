@@ -53,12 +53,11 @@ jobs:
     needs: setup
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
-    # Yahan Job level par variables set kiye hain taaki har step ko milein
+    
     env:
-      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
-      # Agar variables.tf mein sirf 'subscription_id' use kiya hai toh niche wali line bhi rakhein
-      TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
+      TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
+
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
@@ -87,7 +86,7 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           terraform init `
-            -backend-config="subscription_id=${{ secrets.STORAGE_SUBSCRIPTION_ID }}" `
+            -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
             -input=false
           terraform validate
 
@@ -112,9 +111,9 @@ jobs:
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
     env:
-      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
-      TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
+      TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
+      
     steps:
       - name: Checkout Code (Same Commit)
         uses: actions/checkout@v4
