@@ -25,7 +25,9 @@ env:
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
   TF_IN_AUTOMATION: true  
   PLAN_ARTIFACT_NAME: "tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}"
-
+concurrency:
+  group: terraform-${{ github.event.inputs.target_env }}
+  cancel-in-progress: false
 jobs:  
   setup:
     name: "Initialize Logic"
