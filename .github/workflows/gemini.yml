@@ -52,7 +52,7 @@ jobs:
       commit_sha: ${{ steps.sha.outputs.sha }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.setup.outputs.selected_branch }}
 
@@ -86,7 +86,7 @@ jobs:
     environment: ${{ github.event.inputs.target_env }}
     steps:
       - name: Checkout Same Commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.terraform_plan.outputs.commit_sha }}
 
