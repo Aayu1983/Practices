@@ -19,8 +19,9 @@ permissions:
 env:
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  # YAHAN CHANGE KIYA: Correct secret name used for provider auth
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
   TF_INPUT: false
   TF_IN_AUTOMATION: true
 
@@ -40,24 +41,17 @@ jobs:
         shell: powershell
         run: |
           $env_input = "${{ github.event.inputs.target_env }}"
-          if ($env_input -eq "production") {
-            $branch = "main"
-          } else {
-            $branch = $env_input
-          }
+          $branch = if ($env_input -eq "production") { "main" } else { $env_input }
           echo "branch=$branch" >> $env:GITHUB_OUTPUT
-          Write-Host "Selected Branch: $branch"
 
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     needs: setup
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
-    
     env:
       TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
       TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
-
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
@@ -78,8 +72,7 @@ jobs:
         id: name_artifact
         shell: powershell
         run: |
-          $name = "tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}"
-          echo "art_name=$name" >> $env:GITHUB_OUTPUT
+          echo "art_name=tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}" >> $env:GITHUB_OUTPUT
 
       - name: Terraform Init & Validate
         shell: powershell
@@ -113,7 +106,6 @@ jobs:
     env:
       TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
       TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
-      
     steps:
       - name: Checkout Code (Same Commit)
         uses: actions/checkout@v4
@@ -131,7 +123,7 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           terraform init `
-            -backend-config="subscription_id=${{ secrets.STORAGE_SUBSCRIPTION_ID }}" `
+            -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
             -input=false
 
       - name: Terraform Apply
