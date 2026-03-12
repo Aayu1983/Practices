@@ -16,18 +16,14 @@ permissions:
   id-token: write
   contents: read
 
+# Global Env: Ye common hai saare jobs ke liye
 env:
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-  # YAHAN CHANGE KIYA: Correct secret name used for provider auth
   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
   TF_INPUT: false
   TF_IN_AUTOMATION: true
-
-concurrency:
-  group: terraform-${{ github.event.inputs.target_env }}
-  cancel-in-progress: false
 
 jobs:
   setup:
@@ -52,10 +48,6 @@ jobs:
     env:
       TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
       TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
-      ARM_SUBSCRIPTION_ID: ${{secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
@@ -108,6 +100,7 @@ jobs:
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
     env:
+      # Apply ke waqt bhi variables zaroori hain
       TF_VAR_main_subscription_id: ${{ secrets.AZURE_MAIN_SUBSCRIPTION_ID }}
       TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
     steps:
