@@ -11,7 +11,6 @@ on:
       working_directory:
         description: "Terraform folder path"
         required: true
-        
 
 permissions:
   id-token: write
@@ -24,7 +23,6 @@ env:
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
   TF_INPUT: false
   TF_IN_AUTOMATION: true
-  TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
 concurrency:
   group: terraform-${{ github.event.inputs.target_env }}
@@ -55,6 +53,12 @@ jobs:
     needs: setup
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
+    # Yahan Job level par variables set kiye hain taaki har step ko milein
+    env:
+      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
+      # Agar variables.tf mein sirf 'subscription_id' use kiya hai toh niche wali line bhi rakhein
+      TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
@@ -81,9 +85,6 @@ jobs:
       - name: Terraform Init & Validate
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
-        env:
-          TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
         run: |
           terraform init `
             -backend-config="subscription_id=${{ secrets.STORAGE_SUBSCRIPTION_ID }}" `
@@ -94,7 +95,6 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-       
           terraform plan -out="tfplan.binary"
           terraform show -no-color "tfplan.binary" > plan_preview.txt
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
@@ -110,7 +110,11 @@ jobs:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: [setup, terraform_plan]
     runs-on: [self-hosted, Windows]
-    environment: ${{ github.event.inputs.target_env }}ा
+    environment: ${{ github.event.inputs.target_env }}
+    env:
+      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
     steps:
       - name: Checkout Code (Same Commit)
         uses: actions/checkout@v4
@@ -126,9 +130,6 @@ jobs:
       - name: Terraform Init
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
-        env:
-          TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
         run: |
           terraform init `
             -backend-config="subscription_id=${{ secrets.STORAGE_SUBSCRIPTION_ID }}" `
@@ -137,7 +138,7 @@ jobs:
       - name: Terraform Apply
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
-        run: |        
+        run: |
           if (Test-Path "tfplan.binary") {
             terraform apply -auto-approve "tfplan.binary"
           } else {
