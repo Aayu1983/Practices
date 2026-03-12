@@ -7,9 +7,9 @@ terraform {
     }
   }
   backend "azurerm" {
-    resource_group_name  = "storage-rg-name"      
-    storage_account_name = "yourstorageaccount"   
-    container_name       = "tfstate"             
+    resource_group_name  = "newrg"      
+    storage_account_name = "parilok123"   
+    container_name       = "mycontainer"             
     key                  = "prod.terraform.tfstate"
   }
 }
