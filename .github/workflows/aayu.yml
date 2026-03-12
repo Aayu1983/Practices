@@ -105,7 +105,7 @@ jobs:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: [setup, terraform_plan]
     runs-on: [self-hosted, Windows]
-    environment: ${{ github.event.inputs.target_env }} # यहाँ Manual Approval काम करेगा
+    environment: ${{ github.event.inputs.target_env }}ा
     steps:
       - name: Checkout Code (Same Commit)
         uses: actions/checkout@v4
