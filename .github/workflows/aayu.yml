@@ -1,0 +1,136 @@
+name: "Terraform - Manual Environment Deploy Project"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment (uat, sit, production)"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "rg"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  TF_INPUT: false
+  TF_IN_AUTOMATION: true
+
+concurrency:
+  group: terraform-${{ github.event.inputs.target_env }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: "Setup & Branch Logic"
+    runs-on: [self-hosted, Windows]
+    outputs:
+      selected_branch: ${{ steps.determine_branch.outputs.branch }}
+    steps:
+      - name: Determine Branch
+        id: determine_branch
+        shell: powershell
+        run: |
+          $env_input = "${{ github.event.inputs.target_env }}"
+          if ($env_input -eq "production") {
+            $branch = "main"
+          } else {
+            $branch = $env_input
+          }
+          echo "branch=$branch" >> $env:GITHUB_OUTPUT
+          Write-Host "Selected Branch: $branch"
+
+  terraform_plan:
+    name: "Plan - ${{ github.event.inputs.target_env }}"
+    needs: setup
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    outputs:
+      plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
+      plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.selected_branch }}
+
+      - name: Capture Exact Commit SHA
+        id: capture_sha
+        shell: powershell
+        run: |
+          $sha = (git rev-parse HEAD).Trim()
+          echo "sha=$sha" >> $env:GITHUB_OUTPUT
+
+      - name: Name Artifact
+        id: name_artifact
+        shell: powershell
+        run: |
+          $name = "tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}"
+          echo "art_name=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Terraform Init & Validate
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          terraform init
+          terraform validate
+
+      - name: Terraform Plan
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          # Plan को लोकल डायरेक्टरी में सेव करें
+          terraform plan -out="tfplan.binary"
+          # Approval से पहले देखने के लिए Summary जनरेट करें
+          terraform show -no-color "tfplan.binary" > plan_preview.txt
+          Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Upload Plan File
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name_artifact.outputs.art_name }}
+          path: ${{ github.event.inputs.working_directory }}\tfplan.binary
+          retention-days: 1
+
+  terraform_apply:
+    name: "Apply - ${{ github.event.inputs.target_env }}"
+    needs: [setup, terraform_plan]
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }} # यहाँ Manual Approval काम करेगा
+    steps:
+      - name: Checkout Code (Same Commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.terraform_plan.outputs.plan_commit_sha }}
+
+      - name: Download Plan File
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.terraform_plan.outputs.plan_artifact_name }}
+          path: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Init
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: terraform init -input=false
+
+      - name: Terraform Apply
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          # चेक करें कि फाइल मौजूद है, फिर अप्लाई करें
+          if (Test-Path "tfplan.binary") {
+            terraform apply -auto-approve "tfplan.binary"
+          } else {
+            Write-Error "Plan file 'tfplan.binary' not found!"
+            exit 1
+          }
