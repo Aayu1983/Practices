@@ -24,6 +24,7 @@ env:
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
   TF_INPUT: false
   TF_IN_AUTOMATION: true
+  TF_VAR_env_name: ${{ vars.ENV_NAME }}
 
 concurrency:
   group: terraform-${{ github.event.inputs.target_env }}
@@ -97,7 +98,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.name_artifact.outputs.art_name }}
-          path: ${{ github.event.inputs.working_directory }}\tfplan.binary
+          path: ${{ github.event.inputs.working_directory }}/tfplan.binary
           retention-days: 1
 
   terraform_apply:
