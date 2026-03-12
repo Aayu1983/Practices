@@ -10,7 +10,7 @@ terraform {
     resource_group_name  = "newrg"      
     storage_account_name = "parilok123"   
     container_name       = "mycontainer"             
-    key                  = "prod.terraform.tfstate"
+    key                  = "production.terraform.tfstate"
   }
 }
 
