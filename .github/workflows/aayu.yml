@@ -88,9 +88,8 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # Plan को लोकल डायरेक्टरी में सेव करें
+       
           terraform plan -out="tfplan.binary"
-          # Approval से पहले देखने के लिए Summary जनरेट करें
           terraform show -no-color "tfplan.binary" > plan_preview.txt
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
@@ -126,8 +125,7 @@ jobs:
       - name: Terraform Apply
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
-        run: |
-          # चेक करें कि फाइल मौजूद है, फिर अप्लाई करें
+        run: |        
           if (Test-Path "tfplan.binary") {
             terraform apply -auto-approve "tfplan.binary"
           } else {
