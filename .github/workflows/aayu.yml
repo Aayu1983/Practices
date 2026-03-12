@@ -81,8 +81,13 @@ jobs:
       - name: Terraform Init & Validate
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
         run: |
-          terraform init
+          terraform init `
+            -backend-config="subscription_id=${{ secrets.STORAGE_SUBSCRIPTION_ID }}" `
+            -input=false
           terraform validate
 
       - name: Terraform Plan
@@ -121,7 +126,13 @@ jobs:
       - name: Terraform Init
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
-        run: terraform init -input=false
+        env:
+          TF_VAR_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_storage_subscription_id: ${{ secrets.STORAGE_SUBSCRIPTION_ID }}
+        run: |
+          terraform init `
+            -backend-config="subscription_id=${{ secrets.STORAGE_SUBSCRIPTION_ID }}" `
+            -input=false
 
       - name: Terraform Apply
         shell: powershell
