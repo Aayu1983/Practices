@@ -1,4 +1,4 @@
-name: "Terraform - Manual Environment Deploy Project"
+name: "Terraform -newone"
 
 on:
   workflow_dispatch:
