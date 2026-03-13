@@ -84,7 +84,7 @@ jobs:
           $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
-
+          $rgName = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           if (-not $subId -or -not $stgName) { 
             throw "Parsing failed. Check keys in $file" 
           }
@@ -138,7 +138,7 @@ jobs:
           $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
-
+          $rgName = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           terraform init `
             -backend-config="subscription_id=$subId" `
             -backend-config="storage_account_name=$stgName" `
