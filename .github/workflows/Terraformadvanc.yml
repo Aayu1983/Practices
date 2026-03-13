@@ -16,6 +16,10 @@ on:
 permissions:
   id-token: write
   contents: read
+  
+concurrency:
+  group: terraform-${{ github.event.inputs.target_env }}
+  cancel-in-progress: false
 
 env:
   TF_INPUT: "0"
