@@ -23,8 +23,7 @@ concurrency:
 
 env:
   TF_INPUT: "0"
-  TF_IN_AUTOMATION: true
-  # Global Azure Credentials for all Terraform jobs
+  TF_IN_AUTOMATION: true  
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -73,20 +72,19 @@ jobs:
         run: |
           echo "art_name=tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}" >> $env:GITHUB_OUTPUT
 
-      - name: Parse Vars & Terraform Init
+      - name: Initialize Terraform Backend
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           $file = "terraform.tfvars"
-          if (!(Test-Path $file)) { throw "Error: $file not found!" }
-          
+          if (!(Test-Path $file)) { throw "Error: $file not found!" }          
           $content = Get-Content $file -Raw
           $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $rgName  = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           
-          # Yahan rgName check karna zaroori hai
+          
           if (-not $subId -or -not $stgName -or -not $rgName) { 
             throw "Parsing failed. Check keys (subscription_id, storage_name, resource_group_name) in $file" 
           }
@@ -129,24 +127,22 @@ jobs:
       - name: Download Plan File
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.terraform_plan.outputs.plan_artifact_name }}
-          # Download directly into the working directory
+          name: ${{ needs.terraform_plan.outputs.plan_artifact_name }}          
           path: ${{ github.event.inputs.working_directory }}
 
-      - name: Parse Vars & Terraform Init
+      - name: Initialize Terraform Backend
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           $file = "terraform.tfvars"
-          if (!(Test-Path $file)) { throw "Error: $file not found!" }
-          
+          if (!(Test-Path $file)) { throw "Error: $file not found!" }          
           $content = Get-Content $file -Raw
           $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $rgName  = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           
-          # Yahan rgName check karna zaroori hai
+          
           if (-not $subId -or -not $stgName -or -not $rgName) { 
             throw "Parsing failed. Check keys (subscription_id, storage_name, resource_group_name) in $file" 
           }
