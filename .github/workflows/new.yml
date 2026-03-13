@@ -1,0 +1,100 @@
+name: "Terraform - Advance Composite"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "."
+      tfvars_file:
+        description: "Path to tfvars file (e.g., uat.tfvars)"
+        required: true
+        default: "terraform.tfvars"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform_pipeline:
+    name: "Run Terraform: ${{ github.event.inputs.target_env }}"
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      # No need to append secrets to file, Terraform uses these directly
+      TF_VAR_main_subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_storage_subscription_id: ${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Parse Backend & Terraform Init
+        shell: bash
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          FILE="${{ github.event.inputs.tfvars_file }}"
+          
+          if [ ! -f "$FILE" ]; then
+            echo "::error::File $FILE not found!"
+            exit 1
+          fi
+
+          # Parsing values from the input tfvars file
+          SUB_ID=$(grep -E '^\s*subscription-id\s*=' "$FILE" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+          STG_NAME=$(grep -E '^\s*storage_name\s*=' "$FILE" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+          STG_CONT=$(grep -E '^\s*storage_container\s*=' "$FILE" | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+
+          echo "Extracted Storage Account: $STG_NAME"
+          
+          # Terraform Init
+          # Key is omitted here to ensure it is fetched from the provider block in your .tf files
+          terraform init \
+            -backend-config="subscription_id=$SUB_ID" \
+            -backend-config="storage_account_name=$STG_NAME" \
+            -backend-config="container_name=$STG_CONT" \
+            -reconfigure \
+            -input=false
+
+      - name: Terraform Validate
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          # Plan with specific var-file input from user
+          terraform plan `
+            -var-file="${{ github.event.inputs.tfvars_file }}" `
+            -out="tfplan.binary" `
+            -input=false
+          
+          # Publish plan summary to GitHub Action run
+          terraform show -no-color "tfplan.binary" > plan_preview.txt
+          Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Terraform Apply
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          if (Test-Path "tfplan.binary") {
+            Write-Host "Starting Terraform Apply..."
+            terraform apply -auto-approve -input=false "tfplan.binary"
+          } else {
+            Write-Error "Error: 'tfplan.binary' not found. Apply failed."
+            exit 1
+          }
