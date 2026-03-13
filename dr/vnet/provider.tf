@@ -10,7 +10,7 @@ terraform {
     resource_group_name  = "myrg"      
     storage_account_name = "mydemostg"   
     container_name       = "mycontainer"             
-    key                  = "production.terraform.tfstate"
+    key                  = "vnet.terraform.tfstate"
   }
 }
 
