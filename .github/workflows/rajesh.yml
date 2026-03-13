@@ -1,4 +1,4 @@
-name: "Terraform - jjjjjjjj"
+name: "Terraform - Advance Composite"
 
 on:
   workflow_dispatch:
@@ -77,16 +77,28 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # TFVARS file se backend details nikalna (Flexible logic)
           $file = "terraform.tfvars"
-          if (!(Test-Path $file)) { throw "terraform.tfvars not found!" }
+          if (!(Test-Path $file)) { throw "Error: $file not found!" }
           
           $content = Get-Content $file -Raw
-          $subId = [regex]::match($content, 'subscription-id\s*=\s*"([^"]+)"').Groups[1].Value
-          $stgName = [regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value
-          $stgCont = [regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value
+          
+          # Parsing with Trimming for extra safety
+          $subId   = ([regex]::match($content, 'subscription-id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
 
-          Write-Host "Initializing Backend with Storage: $stgName"
+          if (-not $subId -or -not $stgName) { 
+            throw "Parsing failed. Check if keys 'subscription-id' and 'storage_name' are correct in $file" 
+          }
+
+          Write-Host "Initializing Backend for Subscription: $subId"
+          Write-Host "Storage Account: $stgName"
+
+          # Force Azure Auth for the Init process
+          $env:ARM_CLIENT_ID = "${{ secrets.ARM_CLIENT_ID }}"
+          $env:ARM_CLIENT_SECRET = "${{ secrets.ARM_CLIENT_SECRET }}"
+          $env:ARM_TENANT_ID = "${{ secrets.ARM_TENANT_ID }}"
+          $env:ARM_SUBSCRIPTION_ID = "${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           terraform init `
             -backend-config="subscription_id=$subId" `
@@ -94,15 +106,11 @@ jobs:
             -backend-config="container_name=$stgCont" `
             -reconfigure -input=false
 
-      - name: Terraform Validate
-        shell: powershell
-        working-directory: ${{ github.event.inputs.working_directory }}
-        run: terraform validate
-
-      - name: Terraform Plan
+      - name: Terraform Validate & Plan
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
+          terraform validate
           terraform plan -out="tfplan.binary" -input=false
           terraform show -no-color "tfplan.binary" > plan_preview.txt
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
@@ -119,12 +127,7 @@ jobs:
     needs: [setup, terraform_plan]
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
+    
     steps:
       - name: Checkout Code (Same Commit)
         uses: actions/checkout@v4
@@ -141,11 +144,15 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # Apply phase mein bhi init zaroori hai state connect karne ke liye
           $content = Get-Content "terraform.tfvars" -Raw
-          $subId = [regex]::match($content, 'subscription-id\s*=\s*"([^"]+)"').Groups[1].Value
-          $stgName = [regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value
-          $stgCont = [regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value
+          $subId   = ([regex]::match($content, 'subscription-id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+
+          $env:ARM_CLIENT_ID = "${{ secrets.ARM_CLIENT_ID }}"
+          $env:ARM_CLIENT_SECRET = "${{ secrets.ARM_CLIENT_SECRET }}"
+          $env:ARM_TENANT_ID = "${{ secrets.ARM_TENANT_ID }}"
+          $env:ARM_SUBSCRIPTION_ID = "${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           terraform init `
             -backend-config="subscription_id=$subId" `
@@ -160,6 +167,5 @@ jobs:
           if (Test-Path "tfplan.binary") {        
             terraform apply -auto-approve -input=false "tfplan.binary"
           } else {
-            Write-Error "Error: Plan file 'tfplan.binary' not found!"
-            exit 1
+            throw "Error: Plan file 'tfplan.binary' not found!"
           }
