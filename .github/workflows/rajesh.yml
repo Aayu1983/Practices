@@ -81,7 +81,7 @@ jobs:
           if (!(Test-Path $file)) { throw "Error: $file not found!" }
           
           $content = Get-Content $file -Raw
-          $subId   = ([regex]::match($content, 'subscription-id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
 
@@ -135,7 +135,7 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
           $content = Get-Content "terraform.tfvars" -Raw
-          $subId   = ([regex]::match($content, 'subscription-id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
 
