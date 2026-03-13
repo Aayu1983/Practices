@@ -1,0 +1,175 @@
+name: "Terraform -advance"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment (uat, sit, production)"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "."
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_INPUT: "0"
+  TF_IN_AUTOMATION: true
+
+jobs:
+  setup:
+    name: "Setup & Branch Logic"
+    runs-on: [self-hosted, Windows]
+    outputs:
+      selected_branch: ${{ steps.determine_branch.outputs.branch }}
+    steps:
+      - name: Determine Branch
+        id: determine_branch
+        shell: powershell
+        run: |
+          $env_input = "${{ github.event.inputs.target_env }}"
+          $branch = if ($env_input -eq "production") { "main" } else { $env_input }
+          echo "branch=$branch" >> $env:GITHUB_OUTPUT
+
+  terraform_plan:
+    name: "Plan - ${{ github.event.inputs.target_env }}"
+    needs: setup
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    outputs:
+      plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
+      plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.selected_branch }}
+
+      - name: Capture Exact Commit SHA
+        id: capture_sha
+        shell: powershell
+        run: |
+          $sha = (git rev-parse HEAD).Trim()
+          echo "sha=$sha" >> $env:GITHUB_OUTPUT
+
+      - name: Name Artifact
+        id: name_artifact
+        shell: powershell
+        run: |
+          echo "art_name=tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}" >> $env:GITHUB_OUTPUT
+
+      - name: Terraform Init & Validate
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          # Dynamic State Key Logic: folder path ko filename mein convert karna
+          $dir = "${{ github.event.inputs.working_directory }}"
+          $cleanDir = $dir.Replace("/", "-").Replace("\", "-").Trim("-")
+          if ($cleanDir -eq ".") { $cleanDir = "root" }
+          $stateKey = "$cleanDir-${{ github.event.inputs.target_env }}.tfstate"
+          
+          Write-Host "✅ Using Isolated State Key: $stateKey"
+
+          terraform init `
+            -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
+            -backend-config="key=$stateKey" `
+            -reconfigure `
+            -input=false
+          terraform validate
+
+      - name: Append Secrets to Existing tfvars
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          Write-Host "Appending subscription IDs to existing terraform.tfvars..."       
+          
+          # Subscription IDs ko end mein add karna bina 'Rg' ko delete kiye
+          $secretsContent = "`nmain_subscription_id = `"${{ secrets.ARM_SUBSCRIPTION_ID }}`"`nstorage_subscription_id = `"${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}`""
+          $secretsContent | Out-File -FilePath "terraform.tfvars" -Append -Encoding utf8
+          
+          Write-Host "Done! Secrets appended safely."
+          Get-Item "terraform.tfvars" | Select-Object Name, Length
+
+      - name: Terraform Plan
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          terraform plan -out="tfplan.binary" -input=false
+          terraform show -no-color "tfplan.binary" > plan_preview.txt
+          Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Upload Plan File
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name_artifact.outputs.art_name }}
+          path: ${{ github.event.inputs.working_directory }}/tfplan.binary
+          retention-days: 1
+
+  terraform_apply:
+    name: "Apply - ${{ github.event.inputs.target_env }}"
+    needs: [setup, terraform_plan]
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+      - name: Checkout Code (Same Commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.terraform_plan.outputs.plan_commit_sha }}
+
+      - name: Download Plan File
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.terraform_plan.outputs.plan_artifact_name }}
+          path: ${{ github.event.inputs.working_directory }}
+
+      - name: Terraform Init
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          # Same Dynamic State Key for Apply
+          $dir = "${{ github.event.inputs.working_directory }}"
+          $cleanDir = $dir.Replace("/", "-").Replace("\", "-").Trim("-")
+          if ($cleanDir -eq ".") { $cleanDir = "root" }
+          $stateKey = "$cleanDir-${{ github.event.inputs.target_env }}.tfstate"
+
+          terraform init `
+            -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
+            -backend-config="key=$stateKey" `
+            -reconfigure `
+            -input=false
+
+      - name: Terraform Apply
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          if (Test-Path "tfplan.binary") {        
+            terraform apply -auto-approve -input=false "tfplan.binary"
+          } else {
+            Write-Error "Error: Plan file 'tfplan.binary' not found!"
+            exit 1
+          }
+
+      - name: Cleanup tfvars
+        if: always()
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        run: |
+          if (Test-Path "terraform.tfvars") { Remove-Item "terraform.tfvars" -Force }
