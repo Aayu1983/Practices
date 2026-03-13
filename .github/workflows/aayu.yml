@@ -85,7 +85,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          Write-Host "Appending subscription IDs to existing terraform.tfvars..."          
+          Write-Host "Appending subscription IDs to existing terraform.tfvars..."       
         
           $secretsContent = "`nmain_subscription_id = `"${{ secrets.ARM_SUBSCRIPTION_ID }}`"`nstorage_subscription_id = `"${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}`""
           
@@ -98,7 +98,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # TF automatically picks terraform.tfvars if it's in the same directory
+          
           terraform plan -out="tfplan.binary" -input=false
           terraform show -no-color "tfplan.binary" > plan_preview.txt
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
