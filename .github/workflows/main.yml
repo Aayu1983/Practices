@@ -101,6 +101,52 @@ jobs:
         run: terraform init
         working-directory: ${{ github.event.inputs.working_directory }}
 
+        tfvars
+ 
+sub_id= "42513"
+st_name = "test"
+st_cont= "test"
+ 
+runs:
+  using: "composite"
+  steps:
+    # - uses: pietrobolcato/install-azure-cli-action@main
+    - name: Parse `sub_name` from input file and Generate Hash
+      run: |
+        tfVarsPath="${{ inputs.tfvars_file }}"
+    sub_id=$(grep -E '^\s*sub_name\s*=\s*"[^"]+"' "$tfVarsPath" | sed -E 's/^\s*sub_id\s*=\s*"([^"]+)"/\1/')
+       st_name =$(grep -E '^\s*sub_name\s*=\s*"[^"]+"' "$tfVarsPath" | sed -E 's/^\s*st_name \s*=\s*"([^"]+)"/\1/')
+st_cont=$(grep -E '^\s*sub_name\s*=\s*"[^"]+"' "$tfVarsPath" | sed -E 's/^\s*st_cont\s*=\s*"([^"]+)"/\1/')
+ 
+    
+ 
+ 
+ 
+terraform init -backend-config="key=${{ secret.key }}" \
+                       -backend-config="subscription_id=$sub_id" \
+                       -backend-config="storage_account_name=$st_name" \
+                       -backend-config="container_name=$st_cont"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
       - name: Terraform Apply
         run: terraform apply -auto-approve "${{ github.workspace }}\tfplan"
         working-directory: ${{ github.event.inputs.working_directory }}
