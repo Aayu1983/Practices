@@ -5,3 +5,5 @@ variable "Rg" {
   }))
 }
 
+varaiable "subscription_id" {}
+
