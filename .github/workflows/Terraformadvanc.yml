@@ -80,7 +80,7 @@ jobs:
           if ($cleanDir -eq ".") { $cleanDir = "root" }
           $stateKey = "$cleanDir-${{ github.event.inputs.target_env }}.tfstate"
           
-          Write-Host "✅ Using Isolated State Key: $stateKey"
+          Write-Host "Using Isolated State Key: $stateKey"
 
           terraform init `
             -backend-config="subscription_id=${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}" `
@@ -144,7 +144,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # Same Dynamic State Key for Apply
+          
           $dir = "${{ github.event.inputs.working_directory }}"
           $cleanDir = $dir.Replace("/", "-").Replace("\", "-").Trim("-")
           if ($cleanDir -eq ".") { $cleanDir = "root" }
