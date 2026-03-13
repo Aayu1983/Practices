@@ -74,7 +74,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          # Dynamic State Key Logic: folder path ko filename mein convert karna
+          
           $dir = "${{ github.event.inputs.working_directory }}"
           $cleanDir = $dir.Replace("/", "-").Replace("\", "-").Trim("-")
           if ($cleanDir -eq ".") { $cleanDir = "root" }
@@ -95,7 +95,7 @@ jobs:
         run: |
           Write-Host "Appending subscription IDs to existing terraform.tfvars..."       
           
-          # Subscription IDs ko end mein add karna bina 'Rg' ko delete kiye
+         
           $secretsContent = "`nmain_subscription_id = `"${{ secrets.ARM_SUBSCRIPTION_ID }}`"`nstorage_subscription_id = `"${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}`""
           $secretsContent | Out-File -FilePath "terraform.tfvars" -Append -Encoding utf8
           
