@@ -84,15 +84,18 @@ jobs:
           $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
-          $rgName = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
-          if (-not $subId -or -not $stgName) { 
-            throw "Parsing failed. Check keys in $file" 
+          $rgName  = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          
+          # Yahan rgName check karna zaroori hai
+          if (-not $subId -or -not $stgName -or -not $rgName) { 
+            throw "Parsing failed. Check keys (subscription_id, storage_name, resource_group_name) in $file" 
           }
 
           terraform init `
             -backend-config="subscription_id=$subId" `
             -backend-config="storage_account_name=$stgName" `
             -backend-config="container_name=$stgCont" `
+            -backend-config="resource_group_name=$rgName" `
             -reconfigure
 
       - name: Terraform Validate & Plan
@@ -130,19 +133,29 @@ jobs:
           # Download directly into the working directory
           path: ${{ github.event.inputs.working_directory }}
 
-      - name: Re-Init Backend
+      - name: Parse Vars & Terraform Init
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          $content = Get-Content "terraform.tfvars" -Raw
+          $file = "terraform.tfvars"
+          if (!(Test-Path $file)) { throw "Error: $file not found!" }
+          
+          $content = Get-Content $file -Raw
           $subId   = ([regex]::match($content, 'subscription_id\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgName = ([regex]::match($content, 'storage_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
           $stgCont = ([regex]::match($content, 'storage_container\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
-          $rgName = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          $rgName  = ([regex]::match($content, 'resource_group_name\s*=\s*"([^"]+)"').Groups[1].Value).Trim()
+          
+          # Yahan rgName check karna zaroori hai
+          if (-not $subId -or -not $stgName -or -not $rgName) { 
+            throw "Parsing failed. Check keys (subscription_id, storage_name, resource_group_name) in $file" 
+          }
+
           terraform init `
             -backend-config="subscription_id=$subId" `
             -backend-config="storage_account_name=$stgName" `
             -backend-config="container_name=$stgCont" `
+            -backend-config="resource_group_name=$rgName" `
             -reconfigure
 
       - name: Terraform Apply
