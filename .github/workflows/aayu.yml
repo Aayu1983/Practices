@@ -81,23 +81,23 @@ jobs:
             -input=false
           terraform validate
 
-     
       - name: Create and Verify tfvars
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          Write-Host "Generating terraform.tfvars file..."
+          Write-Host "Step 1: Generating terraform.tfvars file..."
           $content = @"
           main_subscription_id    = "${{ secrets.ARM_SUBSCRIPTION_ID }}"
           storage_subscription_id = "${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}"
           "@
           $content | Out-File -FilePath "terraform.tfvars" -Encoding utf8
           
+          Write-Host "Step 2: Verifying file content..."
           if (Test-Path "terraform.tfvars") {
-              Write-Host " tfvars file created successfully."
-              Get-Item "terraform.tfvars" | Select-Object Name, Length
+              $fileInfo = Get-Item "terraform.tfvars"
+              Write-Host "✅ Success: tfvars file created ($($fileInfo.Length) bytes)."
           } else {
-              Write-Error " Failed to create tfvars file!"
+              Write-Error "❌ Error: Failed to create tfvars file!"
               exit 1
           }
 
@@ -105,7 +105,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-         
+          # TF automatically picks terraform.tfvars if it's in the same directory
           terraform plan -out="tfplan.binary" -input=false
           terraform show -no-color "tfplan.binary" > plan_preview.txt
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
@@ -157,7 +157,7 @@ jobs:
           if (Test-Path "tfplan.binary") {        
             terraform apply -auto-approve -input=false "tfplan.binary"
           } else {
-            Write-Error "Plan file 'tfplan.binary' not found!"
+            Write-Error "❌ Error: Plan file 'tfplan.binary' not found!"
             exit 1
           }
 
