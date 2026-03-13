@@ -81,25 +81,20 @@ jobs:
             -input=false
           terraform validate
 
-      - name: Create and Verify tfvars
+      - name: Append Secrets to Existing tfvars
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          Write-Host "Step 1: Generating terraform.tfvars file..."
-          $content = @"
-          main_subscription_id    = "${{ secrets.ARM_SUBSCRIPTION_ID }}"
-          storage_subscription_id = "${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}"
-          "@
-          $content | Out-File -FilePath "terraform.tfvars" -Encoding utf8
+          Write-Host "Appending subscription IDs to existing terraform.tfvars..."
           
-          Write-Host "Step 2: Verifying file content..."
-          if (Test-Path "terraform.tfvars") {
-              $fileInfo = Get-Item "terraform.tfvars"
-              Write-Host "✅ Success: tfvars file created ($($fileInfo.Length) bytes)."
-          } else {
-              Write-Error "❌ Error: Failed to create tfvars file!"
-              exit 1
-          }
+          # Yahan '`n' ka matlab hai New Line, aur '-Append' se purana data safe rahega
+          $secretsContent = "`nmain_subscription_id = `"${{ secrets.ARM_SUBSCRIPTION_ID }}`"`nstorage_subscription_id = `"${{ secrets.AZURE_STORAGE_SUBSCRIPTION_ID }}`""
+          
+          $secretsContent | Out-File -FilePath "terraform.tfvars" -Append -Encoding utf8
+          
+          Write-Host "✅ Done! Secrets added without deleting 'Rg' variable."
+          # Debug: File ka content check karne ke liye (Sirf length dikhayega)
+          Get-Item "terraform.tfvars" | Select-Object Name, Length
 
       - name: Terraform Plan
         shell: powershell
