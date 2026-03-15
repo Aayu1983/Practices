@@ -1,0 +1,165 @@
+name: "Terraform Infra Pipeline set backed in secret"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment (uat, sit, production)"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "."
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_INPUT: "0"
+  TF_IN_AUTOMATION: true  
+
+jobs:
+  setup:
+    name: "Setup & Branch Logic"
+    runs-on: [self-hosted, Windows]
+    outputs:
+      selected_branch: ${{ steps.determine_branch.outputs.branch }}
+    steps:
+      - name: Determine Branch
+        id: determine_branch
+        shell: powershell
+        run: |
+          $env_input = "${{ github.event.inputs.target_env }}"
+          $branch = if ($env_input -eq "production") { "main" } else { $env_input }
+          echo "branch=$branch" >> $env:GITHUB_OUTPUT
+
+  terraform_plan:
+    name: "Plan - ${{ github.event.inputs.target_env }}"
+    needs: setup
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    outputs:
+      plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
+      plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.selected_branch }}
+
+      - name: Capture Exact Commit SHA
+        id: capture_sha
+        shell: powershell
+        run: |
+          $sha = (git rev-parse HEAD).Trim()
+          echo "sha=$sha" >> $env:GITHUB_OUTPUT
+
+      - name: Name Artifact
+        id: name_artifact
+        shell: powershell
+        run: |
+          echo "art_name=tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}" >> $env:GITHUB_OUTPUT
+
+      - name: Initialize Terraform Backend
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          # BACKEND SUBSCRIPTION (From Repository Secrets/Vars) ---
+          BACKEND_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
+          STG_NAME: ${{ vars.BACKEND_STORAGE_ACCOUNT_NAME }}
+          STG_CONT: ${{ vars.BACKEND_CONTAINER_NAME }}
+          RG_NAME: ${{ vars.BACKEND_RESOURCE_GROUP }}
+          
+          # DEPLOYMENT AUTH (From Environment Secrets/Vars) ---
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+        run: |
+          Write-Host "Connecting to Backend Storage in Sub: $env:BACKEND_SUB_ID"
+          terraform init `
+            -backend-config="subscription_id=$env:BACKEND_SUB_ID" `
+            -backend-config="storage_account_name=$env:STG_NAME" `
+            -backend-config="container_name=$env:STG_CONT" `
+            -backend-config="resource_group_name=$env:RG_NAME" `
+            -reconfigure
+
+      - name: Terraform Validate & Plan
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          # Deployment Subscription (Target Environment)
+          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+        run: |
+          Write-Host "Generating Plan for Deployment Sub: $env:ARM_SUBSCRIPTION_ID"
+          terraform validate
+          terraform plan -out="tfplan.binary"
+          terraform show -no-color "tfplan.binary" > plan_preview.txt
+          Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Upload Plan File
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name_artifact.outputs.art_name }}
+          path: ${{ github.event.inputs.working_directory }}/tfplan.binary
+          retention-days: 1
+
+  terraform_apply:
+    name: "Apply - ${{ github.event.inputs.target_env }}"
+    needs: [setup, terraform_plan]
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.terraform_plan.outputs.plan_commit_sha }}
+
+      - name: Download Plan File
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.terraform_plan.outputs.plan_artifact_name }}          
+          path: ${{ github.event.inputs.working_directory }}
+
+      - name: Initialize Terraform Backend
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          BACKEND_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
+          STG_NAME: ${{ vars.BACKEND_STORAGE_ACCOUNT_NAME }}
+          STG_CONT: ${{ vars.BACKEND_CONTAINER_NAME }}
+          RG_NAME: ${{ vars.BACKEND_RESOURCE_GROUP }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+        run: |
+          terraform init `
+            -backend-config="subscription_id=$env:BACKEND_SUB_ID" `
+            -backend-config="storage_account_name=$env:STG_NAME" `
+            -backend-config="container_name=$env:STG_CONT" `
+            -backend-config="resource_group_name=$env:RG_NAME" `
+            -reconfigure
+
+      - name: Terraform Apply
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+        run: |
+          if (Test-Path "tfplan.binary") {        
+            terraform apply -auto-approve "tfplan.binary"
+          } else {
+            throw "Error: Plan file 'tfplan.binary' not found."
+          }
