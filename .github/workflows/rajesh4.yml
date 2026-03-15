@@ -1,4 +1,4 @@
-name: "Terraform Infra Pipeline - Final Production Fix"
+name: "Terraform Infra Pipeline - Final Fixed"
 
 on:
   workflow_dispatch:
@@ -17,20 +17,16 @@ permissions:
   id-token: write
   contents: read
 
-concurrency:
-  group: terraform-${{ github.event.inputs.target_env }}
-  cancel-in-progress: false
-
 env:
   TF_INPUT: "0"
-  TF_IN_AUTOMATION: true  
+  TF_IN_AUTOMATION: true
+  # Inko Global rakhein taki har step mein auth milta rahe
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
   ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
 jobs:
-  # JOB 1: Branch and Setup Logic
   setup:
     name: "Setup & Logic"
     runs-on: [self-hosted, Windows]
@@ -45,12 +41,11 @@ jobs:
           $branch = if ($env_input -eq "production") { "main" } else { $env_input }
           echo "branch=$branch" >> $env:GITHUB_OUTPUT
 
-  # JOB 2: Terraform Plan
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     needs: setup
     runs-on: [self-hosted, Windows]
-    environment: plan_only
+    environment: ${{ github.event.inputs.target_env }}
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
@@ -83,14 +78,15 @@ jobs:
           if (!(Test-Path $file)) { throw "Error: $file not found!" }
           $content = Get-Content $file -Raw
 
-          # Fetching backend details using -Last 1 for safety
+          # .tfvars se backend info nikalna
           $subId   = ([regex]::matches($content, 'subscription_id\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgName = ([regex]::matches($content, 'storage_name\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgCont = ([regex]::matches($content, 'storage_container\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $rgName  = ([regex]::matches($content, 'resource_group_name\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
 
-          Write-Host "Initializing Backend with Service Principal Auth..."
+          Write-Host "Initializing Backend using extracted variables..."
 
+          # Init ke time Auth variables explicitly pass karna zaroori hai
           terraform init `
             -backend-config="subscription_id=$subId" `
             -backend-config="storage_account_name=$stgName" `
@@ -99,7 +95,6 @@ jobs:
             -backend-config="client_id=$env:ARM_CLIENT_ID" `
             -backend-config="client_secret=$env:ARM_CLIENT_SECRET" `
             -backend-config="tenant_id=$env:ARM_TENANT_ID" `
-            -input=false `
             -reconfigure
 
       - name: Terraform Validate & Plan
@@ -108,10 +103,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           terraform validate
-          terraform plan -out="tfplan.binary" -input=false
-          
+          terraform plan -out="tfplan.binary"
           terraform show -no-color "tfplan.binary" > plan_preview.txt
-          "### 📋 Plan Summary for ${{ github.event.inputs.target_env }}" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Upload Plan File
@@ -120,9 +113,7 @@ jobs:
         with:
           name: ${{ steps.name_artifact.outputs.art_name }}
           path: ${{ github.event.inputs.working_directory }}/tfplan.binary
-          retention-days: 1
 
-  # JOB 3: Terraform Apply
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: [setup, terraform_plan]
@@ -145,9 +136,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          $ErrorActionPreference = 'Stop'
           $content = Get-Content "terraform.tfvars" -Raw
-          
           $subId   = ([regex]::matches($content, 'subscription_id\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgName = ([regex]::matches($content, 'storage_name\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgCont = ([regex]::matches($content, 'storage_container\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
@@ -161,16 +150,10 @@ jobs:
             -backend-config="client_id=$env:ARM_CLIENT_ID" `
             -backend-config="client_secret=$env:ARM_CLIENT_SECRET" `
             -backend-config="tenant_id=$env:ARM_TENANT_ID" `
-            -input=false `
             -reconfigure
 
       - name: Terraform Apply
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         run: |
-          $ErrorActionPreference = 'Stop'
-          if (Test-Path "tfplan.binary") {        
-            terraform apply -auto-approve "tfplan.binary" -input=false
-          } else {
-            throw "Error: Plan file 'tfplan.binary' not found."
-          }
+          terraform apply -auto-approve "tfplan.binary"
