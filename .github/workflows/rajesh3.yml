@@ -1,0 +1,104 @@
+name: "Terraform Infra Pipeline by screte fetch by keyvalut"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment (uat, sit, production)"
+        required: true
+        type: choice
+        options: [uat, sit, production]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "."
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_INPUT: "0"
+  TF_IN_AUTOMATION: true  
+
+jobs:
+  terraform_plan_apply:
+    name: "Terraform Execution - ${{ github.event.inputs.target_env }}"
+    runs-on: [self-hosted, Windows]
+    environment: ${{ github.event.inputs.target_env }}
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fetch & Mask Backend Details from Key Vault
+        shell: powershell
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          KV_NAME: ${{ vars.KEY_VAULT_NAME }} 
+          KV_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
+        run: |
+          # 1. Login to Azure
+          az login --service-principal -u $env:ARM_CLIENT_ID -p $env:ARM_CLIENT_SECRET --tenant $env:ARM_TENANT_ID
+          az account set --subscription $env:KV_SUB_ID
+
+          # 2. Fetch Secrets
+          Write-Host "Fetching and Masking Secrets from KV: $env:KV_NAME"
+          $stgName = (az keyvault secret show --name "tf-stg-name" --vault-name $env:KV_NAME --query value -o tsv).Trim()
+          $stgCont = (az keyvault secret show --name "tf-stg-container" --vault-name $env:KV_NAME --query value -o tsv).Trim()
+          $stgRG   = (az keyvault secret show --name "tf-stg-rg" --vault-name $env:KV_NAME --query value -o tsv).Trim()
+
+          # 3. Apply Masking (Console par hide karne ke liye)
+          echo "::add-mask::$stgName"
+          echo "::add-mask::$stgCont"
+          echo "::add-mask::$stgRG"
+
+          # 4. Save to Environment for next steps
+          echo "KV_STG_NAME=$stgName" >> $env:GITHUB_ENV
+          echo "KV_STG_CONT=$stgCont" >> $env:GITHUB_ENV
+          echo "KV_STG_RG=$stgRG" >> $env:GITHUB_ENV
+          
+          Write-Host "Backend configuration fetched and masked successfully."
+
+      - name: Initialize Terraform Backend
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          BACKEND_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+        run: |
+          # Yahan backend-config values ab mask ho chuki hain
+          terraform init `
+            -backend-config="subscription_id=$env:BACKEND_SUB_ID" `
+            -backend-config="storage_account_name=$env:KV_STG_NAME" `
+            -backend-config="container_name=$env:KV_STG_CONT" `
+            -backend-config="resource_group_name=$env:KV_STG_RG" `
+            -reconfigure
+
+      - name: Terraform Plan
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+        run: |
+          terraform validate
+          terraform plan -out="tfplan.binary"
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        shell: powershell
+        working-directory: ${{ github.event.inputs.working_directory }}
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+        run: |
+          terraform apply -auto-approve "tfplan.binary"
