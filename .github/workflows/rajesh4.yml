@@ -1,4 +1,4 @@
-name: "Terraform Infra Pipeline - Production Ready"
+name: "Terraform Infra Pipeline - Final Production Fix"
 
 on:
   workflow_dispatch:
@@ -30,7 +30,7 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
 jobs:
-  # --- JOB 1: LOGIC ---
+  # JOB 1: Branch and Setup Logic
   setup:
     name: "Setup & Logic"
     runs-on: [self-hosted, Windows]
@@ -45,12 +45,12 @@ jobs:
           $branch = if ($env_input -eq "production") { "main" } else { $env_input }
           echo "branch=$branch" >> $env:GITHUB_OUTPUT
 
-  # --- JOB 2: PLAN ---
+  # JOB 2: Terraform Plan
   terraform_plan:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     needs: setup
     runs-on: [self-hosted, Windows]
-    environment: plan_only # Isse plan records alag rehte hain
+    environment: plan_only
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
@@ -83,16 +83,22 @@ jobs:
           if (!(Test-Path $file)) { throw "Error: $file not found!" }
           $content = Get-Content $file -Raw
 
+          # Fetching backend details using -Last 1 for safety
           $subId   = ([regex]::matches($content, 'subscription_id\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgName = ([regex]::matches($content, 'storage_name\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgCont = ([regex]::matches($content, 'storage_container\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $rgName  = ([regex]::matches($content, 'resource_group_name\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
+
+          Write-Host "Initializing Backend with Service Principal Auth..."
 
           terraform init `
             -backend-config="subscription_id=$subId" `
             -backend-config="storage_account_name=$stgName" `
             -backend-config="container_name=$stgCont" `
             -backend-config="resource_group_name=$rgName" `
+            -backend-config="client_id=$env:ARM_CLIENT_ID" `
+            -backend-config="client_secret=$env:ARM_CLIENT_SECRET" `
+            -backend-config="tenant_id=$env:ARM_TENANT_ID" `
             -input=false `
             -reconfigure
 
@@ -104,9 +110,8 @@ jobs:
           terraform validate
           terraform plan -out="tfplan.binary" -input=false
           
-          # Plan summary for PR/Step view
           terraform show -no-color "tfplan.binary" > plan_preview.txt
-          "### 📋 Terraform Plan Summary for ${{ github.event.inputs.target_env }}" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "### 📋 Plan Summary for ${{ github.event.inputs.target_env }}" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Upload Plan File
@@ -117,12 +122,11 @@ jobs:
           path: ${{ github.event.inputs.working_directory }}/tfplan.binary
           retention-days: 1
 
-  # --- JOB 3: APPLY (With Manual Approval) ---
+  # JOB 3: Terraform Apply
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: [setup, terraform_plan]
     runs-on: [self-hosted, Windows]
-    # IMPORTANT: GitHub Environment mein 'Required Reviewers' set karein
     environment: ${{ github.event.inputs.target_env }}
     
     steps:
@@ -143,6 +147,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $content = Get-Content "terraform.tfvars" -Raw
+          
           $subId   = ([regex]::matches($content, 'subscription_id\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgName = ([regex]::matches($content, 'storage_name\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
           $stgCont = ([regex]::matches($content, 'storage_container\s*=\s*"([^"]+)"') | Select-Object -Last 1).Groups[1].Value.Trim()
@@ -153,6 +158,9 @@ jobs:
             -backend-config="storage_account_name=$stgName" `
             -backend-config="container_name=$stgCont" `
             -backend-config="resource_group_name=$rgName" `
+            -backend-config="client_id=$env:ARM_CLIENT_ID" `
+            -backend-config="client_secret=$env:ARM_CLIENT_SECRET" `
+            -backend-config="tenant_id=$env:ARM_TENANT_ID" `
             -input=false `
             -reconfigure
 
