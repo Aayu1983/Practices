@@ -10,9 +10,7 @@ terraform {
     key                  = "rg.terraform.tfstate"
   }
 }
-
-provider "azurerm" {
- 
+provider "azurerm" { 
   features {}
 }
 
