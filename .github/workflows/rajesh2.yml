@@ -70,15 +70,15 @@ jobs:
         env:
           # BACKEND SUBSCRIPTION (From Repository Secrets/Vars) ---
           BACKEND_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
-          STG_NAME: ${{ vars.BACKEND_STORAGE_ACCOUNT_NAME }}
-          STG_CONT: ${{ vars.BACKEND_CONTAINER_NAME }}
-          RG_NAME: ${{ vars.BACKEND_RESOURCE_GROUP }}
+          STG_NAME: ${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}
+          STG_CONT: ${{ secrets.BACKEND_CONTAINER_NAME }}
+          RG_NAME: ${{ secrets.BACKEND_RESOURCE_GROUP }}
           
           # DEPLOYMENT AUTH (From Environment Secrets/Vars) ---
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         run: |
           Write-Host "Connecting to Backend Storage in Sub: $env:BACKEND_SUB_ID"
           terraform init `
@@ -134,13 +134,13 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         env:
           BACKEND_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
-          STG_NAME: ${{ vars.BACKEND_STORAGE_ACCOUNT_NAME }}
-          STG_CONT: ${{ vars.BACKEND_CONTAINER_NAME }}
-          RG_NAME: ${{ vars.BACKEND_RESOURCE_GROUP }}
+          STG_NAME: ${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}
+          STG_CONT: ${{ secrets.BACKEND_CONTAINER_NAME }}
+          RG_NAME: ${{ secrets.BACKEND_RESOURCE_GROUP }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         run: |
           terraform init `
             -backend-config="subscription_id=$env:BACKEND_SUB_ID" `
