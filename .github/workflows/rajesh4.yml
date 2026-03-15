@@ -1,4 +1,4 @@
-name: "Terraform Infra Pipeline by Powershell"
+name: "Terraform Infra Pipeline by Powershell  4 by string"
 
 on:
   workflow_dispatch:
