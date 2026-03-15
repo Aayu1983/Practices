@@ -94,7 +94,7 @@ jobs:
         working-directory: ${{ github.event.inputs.working_directory }}
         env:
           # Deployment Subscription (Target Environment)
-          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -154,7 +154,7 @@ jobs:
         shell: powershell
         working-directory: ${{ github.event.inputs.working_directory }}
         env:
-          ARM_SUBSCRIPTION_ID: ${{ vars.DEPLOYMENT_SUBSCRIPTION_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
