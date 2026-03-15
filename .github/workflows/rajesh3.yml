@@ -39,27 +39,20 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           KV_NAME: ${{ vars.KEY_VAULT_NAME }} 
           KV_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
-        run: |
-          # 1. Login to Azure
+        run: |         
           az login --service-principal -u $env:ARM_CLIENT_ID -p $env:ARM_CLIENT_SECRET --tenant $env:ARM_TENANT_ID
-          az account set --subscription $env:KV_SUB_ID
-
-          # 2. Fetch Secrets
+          az account set --subscription $env:KV_SUB_ID          
           Write-Host "Fetching and Masking Secrets from KV: $env:KV_NAME"
           $stgName = (az keyvault secret show --name "tf-stg-name" --vault-name $env:KV_NAME --query value -o tsv).Trim()
           $stgCont = (az keyvault secret show --name "tf-stg-container" --vault-name $env:KV_NAME --query value -o tsv).Trim()
           $stgRG   = (az keyvault secret show --name "tf-stg-rg" --vault-name $env:KV_NAME --query value -o tsv).Trim()
-
-          # 3. Apply Masking (Console par hide karne ke liye)
+          
           echo "::add-mask::$stgName"
           echo "::add-mask::$stgCont"
-          echo "::add-mask::$stgRG"
-
-          # 4. Save to Environment for next steps
+          echo "::add-mask::$stgRG"         
           echo "KV_STG_NAME=$stgName" >> $env:GITHUB_ENV
           echo "KV_STG_CONT=$stgCont" >> $env:GITHUB_ENV
-          echo "KV_STG_RG=$stgRG" >> $env:GITHUB_ENV
-          
+          echo "KV_STG_RG=$stgRG" >> $env:GITHUB_ENV          
           Write-Host "Backend configuration fetched and masked successfully."
 
       - name: Initialize Terraform Backend
@@ -70,8 +63,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-        run: |
-          # Yahan backend-config values ab mask ho chuki hain
+        run: |          
           terraform init `
             -backend-config="subscription_id=$env:BACKEND_SUB_ID" `
             -backend-config="storage_account_name=$env:KV_STG_NAME" `
