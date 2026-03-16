@@ -33,7 +33,11 @@ jobs:
         shell: powershell
         run: |
           $env_input = "${{ github.event.inputs.target_env }}"
-          $branch = if ($env_input -eq "production") { "main" } else { $env_input }
+          if ($env_input -eq "production" -or $env_input -eq "drhub") {
+              $branch = "main"
+          } else {
+              $branch = $env_input
+          }
           echo "branch=$branch" >> $env:GITHUB_OUTPUT
 
   terraform_plan:
