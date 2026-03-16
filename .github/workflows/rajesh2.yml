@@ -44,7 +44,6 @@ jobs:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     needs: setup
     runs-on: [self-hosted, Windows]
-    environment: ${{ github.event.inputs.target_env }}
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
