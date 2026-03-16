@@ -116,7 +116,16 @@ jobs:
           name: ${{ steps.name_artifact.outputs.art_name }}
           path: ${{ github.event.inputs.working_directory }}/tfplan.binary
           retention-days: 1
-
+        
+  await-approval: 
+   name: "waiting for manual approver"
+   needs: [setup, terraform_plan]
+   runs-on: [self-hosted, Windows]
+   environment: approver
+   steps:
+      - name: Await Manual Approval
+        run: echo "Waiting for approval in environment 'approver'..."
+   
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: [setup, terraform_plan]
