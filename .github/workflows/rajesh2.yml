@@ -128,7 +128,7 @@ jobs:
    
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
-    needs: [setup, terraform_plan]
+    needs: [setup, terraform_plan, await-approval]
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
     
