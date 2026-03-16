@@ -1,4 +1,4 @@
-name : "Terraform infra pipeline for multi satge"
+name : "Terraform infra pipeline for multi stage"
 
 on:
   workflow_dispatch:
