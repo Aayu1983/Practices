@@ -16,13 +16,13 @@ on:
         required: true
         default: "."
 env:
- # BACKEND SUBSCRIPTION (From Repository Secrets/Vars) ---
+ # BACKEND SUBSCRIPTION (From Repository Secrets/Variables) ---
  BACKEND_SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
  STG_NAME: ${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}
  STG_CONT: ${{ secrets.BACKEND_CONTAINER_NAME }}
  RG_NAME: ${{ secrets.BACKEND_RESOURCE_GROUP }}         
           
- # DEPLOYMENT AUTH (From Environment Secrets/Vars) ---
+ # DEPLOYMENT AUTH (From Environment Variables) ---
  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
