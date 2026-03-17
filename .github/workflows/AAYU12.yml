@@ -1,0 +1,20 @@
+The Workflow Overview
+Trigger & Context:
+When I check in (push) code to the repository, the pipeline starts. It uses GitHub Environments to know which subscription to talk to (e.g., Dev, UAT, or Prod). 
+Initialization & Backend:
+The pipeline fetches sensitive data (like Storage Account keys or Client IDs) from GitHub Secrets and Variables. It then runs terraform init, configuring the Remote Backend so that its state file is stored securely in the cloud, not on a local machine. 
+The "Plan" Stage (with SHA Logic): 
+The pipeline runs terraform plan. 
+This creates a specific "Plan File" (e.g., out.tfplan). 
+The SHA Concept: You link this plan to the specific Commit SHA ID. This is like putting a unique fingerprint on the plan. Even if someone else pushes new code a minute later, your current "Apply" stage will only look at the plan created for your specific commit.
+ 
+Manual Gate (The Safety Switch):
+Before anything changes in your actual infrastructure, the pipeline stops. It waits for a human (a Lead or Peer) to review the plan and click "Approve." This prevents accidental or direct "Auto-Applies" that could break the environment.
+ 
+The "Apply" Stage (Drift Prevention):
+Once approved, the pipeline downloads the artifact (the plan file) using that SHA ID. It runs terraform apply. Because it uses the exact plan file generated earlier, there is no "drift"—meaning the infrastructure deployed is exactly what you saw and approved in the Plan stage.
+ 
+Zero Drift: By passing the plan file as an artifact, you ensure that what you tested is exactly what you deployed. 
+Security: Using Secrets and Variables means no passwords or IDs are hardcoded in your files. 
+Compliance: The manual gate provides an "Audit Trail," showing who approved the change and when.
+ 
