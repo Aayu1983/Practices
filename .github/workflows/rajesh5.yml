@@ -36,7 +36,7 @@ permissions:
 
 jobs:
   setup:
-    name: "Setup & Branch Logic"
+    name: "Environment Initialization & Branch Routing"
     runs-on: [self-hosted, Windows]
     outputs:
       selected_branch: ${{ steps.determine_branch.outputs.branch }}
