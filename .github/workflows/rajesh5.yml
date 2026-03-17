@@ -1,6 +1,7 @@
 name : "Terraform infra pipeline for multi stage"
 
 on:
+ # Drives branch‑selection logic, environment‑level secrets, and approval workflows 
   workflow_dispatch:
     inputs:
       target_env:
@@ -8,7 +9,9 @@ on:
         required: true
         type: choice
         options: [uat, sit, production, drhub]
+        
       working_directory:
+       # Specifies the Terraform module or root folder to run init/plan/apply
         description: "Terraform folder path"
         required: true
         default: "."
@@ -38,7 +41,7 @@ jobs:
     outputs:
       selected_branch: ${{ steps.determine_branch.outputs.branch }}
     steps:
-      - name: Determine Branch
+      - name: Evaluate Environment Branch Rule
         id: determine_branch
         shell: powershell
         run: |
