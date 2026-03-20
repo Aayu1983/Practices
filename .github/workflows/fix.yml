@@ -1,4 +1,4 @@
-name : "Terraform infra fix"
+name : "Terraform infra pipeline fix it"
 
 on:
  # Drives branch‑selection logic, environment‑level secrets, and approval workflows 
