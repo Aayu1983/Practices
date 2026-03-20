@@ -1,0 +1,80 @@
+name: "Terraform Logic Template"
+
+on:
+  workflow_call:
+    inputs:
+      target_env:
+        required: true
+        type: string
+      working_directory:
+        required: true
+        type: string
+      is_apply:
+        required: true
+        type: boolean
+    secrets:
+      ARM_CLIENT_ID: { required: true }
+      ARM_TENANT_ID: { required: true }
+      ARM_SUBSCRIPTION_ID: { required: true }
+      ARM_CLIENT_SECRET: { required: false }
+      BACKEND_SUB_ID: { required: true }
+      STG_NAME: { required: true }
+      STG_CONT: { required: true }
+      RG_NAME: { required: true }
+
+jobs:
+  terraform_job:
+    runs-on: [self-hosted, Windows]
+    environment: ${{ inputs.is_apply && inputs.target_env || '' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.ARM_CLIENT_SECRET }}
+
+      - name: Terraform Action
+        shell: powershell
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          # Backend Config
+          $config = @"
+          subscription_id      = "${{ secrets.BACKEND_SUB_ID }}"
+          storage_account_name = "${{ secrets.STG_NAME }}"
+          container_name       = "${{ secrets.STG_CONT }}"
+          resource_group_name  = "${{ secrets.RG_NAME }}"
+          "@
+          $config | Out-File -FilePath "backend.conf" -Encoding utf8
+
+          terraform init -backend-config="backend.conf" -reconfigure
+
+          if ("${{ inputs.is_apply }}" -eq "false") {
+              # PLAN LOGIC WITH SUMMARY
+              terraform plan -out="tfplan.binary" -no-color > plan_output.txt
+              
+              # Markdown Summary for Approver
+              $user = "${{ github.actor }}"
+              $envName = "${{ inputs.target_env }}"
+              
+              $summary = @"
+          ### 🚀 Terraform Plan Summary
+          - **Triggered By:** @$user
+          - **Environment:** $envName
+          - **Status:** Waiting for Approval ⏳
+          
+          #### Plan Details:
+          ```terraform
+          $(Get-Content plan_output.txt | Select-String "Plan:" | Out-String)
+          ```
+          [Click here to see full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          "@
+              $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          } else {
+              # APPLY LOGIC
+              terraform apply -auto-approve "tfplan.binary"
+          }
