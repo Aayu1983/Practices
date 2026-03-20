@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_env:
-        description: "Select Environment (uat, sit, production, drhub)"
+        description: "Select Environment"
         required: true
         type: choice
         options: [uat, sit, production, drhub]
@@ -19,12 +19,11 @@ permissions:
 
 env:
   TF_IN_AUTOMATION: "true"
-  TF_INPUT: "0"
   WORKING_DIR: ${{ github.event.inputs.working_directory }}
 
 jobs:
   setup:
-    name: "Setup & Routing"
+    name: "Setup"
     runs-on: [self-hosted, Windows]
     outputs:
       selected_branch: ${{ steps.determine_branch.outputs.branch }}
@@ -36,33 +35,26 @@ jobs:
           echo "branch=$branch" >> $env:GITHUB_OUTPUT
 
   terraform_plan:
-    name: "Plan - ${{ github.event.inputs.target_env }}"
+    name: "Plan (OIDC - No Approval Needed)"
     needs: setup
     runs-on: [self-hosted, Windows]
-    environment: ${{ github.event.inputs.target_env }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true" # Plan explicitly using OIDC
-    
+    # YAHAN SE 'environment' HATA DIYA HAI taki approval na mangna pade
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.setup.outputs.selected_branch }}
 
-      - name: Azure Login (OIDC)
+      - name: Azure Login (OIDC via Repo Secrets)
         uses: azure/login@v2
         with:
-          client-id: ${{ env.ARM_CLIENT_ID }}
-          tenant-id: ${{ env.ARM_TENANT_ID }}
-          subscription-id: ${{ env.ARM_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.PLAN_CLIENT_ID }}
+          tenant-id: ${{ secrets.PLAN_TENANT_ID }}
+          subscription-id: ${{ secrets.PLAN_SUBSCRIPTION_ID }}
 
       - name: Terraform Init & Plan
         shell: powershell
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Clean Backend Config Creation
           $config = @"
           subscription_id      = "${{ secrets.BACKEND_SUBSCRIPTION_ID }}"
           storage_account_name = "${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}"
@@ -72,29 +64,20 @@ jobs:
           $config | Out-File -FilePath "backend.conf" -Encoding utf8
 
           terraform init -backend-config="backend.conf" -reconfigure
-          terraform validate
           terraform plan -out="tfplan.binary"
-          terraform show -no-color "tfplan.binary" > plan_preview.txt
-          Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Upload Plan
         uses: actions/upload-artifact@v4
         with:
           name: tf-plan-${{ github.run_id }}
           path: ${{ env.WORKING_DIR }}/tfplan.binary
-          retention-days: 1
 
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
     needs: [setup, terraform_plan]
     runs-on: [self-hosted, Windows]
+    # YAHAN 'environment' HAI, isliye ye approval mangega aur env secrets use karega
     environment: ${{ github.event.inputs.target_env }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_USE_OIDC: "false" # Apply explicitly using Secret
     
     steps:
       - uses: actions/checkout@v4
@@ -107,31 +90,21 @@ jobs:
           name: tf-plan-${{ github.run_id }}
           path: ${{ env.WORKING_DIR }}
 
-      - name: Azure Login (Secret)
+      - name: Azure Login (Secret Based via Env Secrets)
         uses: azure/login@v2
         with:
-          client-id: ${{ env.ARM_CLIENT_ID }}
-          tenant-id: ${{ env.ARM_TENANT_ID }}
-          subscription-id: ${{ env.ARM_SUBSCRIPTION_ID }}
-          client-secret: ${{ env.ARM_CLIENT_SECRET }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.ARM_CLIENT_SECRET }}
 
-      - name: Terraform Init & Apply
+      - name: Terraform Apply
         shell: powershell
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Backend config reuse
-          $config = @"
-          subscription_id      = "${{ secrets.BACKEND_SUBSCRIPTION_ID }}"
-          storage_account_name = "${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}"
-          container_name       = "${{ secrets.BACKEND_CONTAINER_NAME }}"
-          resource_group_name  = "${{ secrets.BACKEND_RESOURCE_GROUP }}"
-          "@
-          $config | Out-File -FilePath "backend.conf" -Encoding utf8
-
-          terraform init -backend-config="backend.conf" -reconfigure
-          
-          if (Test-Path "tfplan.binary") {
-            terraform apply -auto-approve "tfplan.binary"
-          } else {
-            throw "Plan file not found!"
-          }
+          terraform init -backend-config="subscription_id=${{ secrets.BACKEND_SUBSCRIPTION_ID }}" `
+                         -backend-config="storage_account_name=${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}" `
+                         -backend-config="container_name=${{ secrets.BACKEND_CONTAINER_NAME }}" `
+                         -backend-config="resource_group_name=${{ secrets.BACKEND_RESOURCE_GROUP }}" `
+                         -reconfigure
+          terraform apply -auto-approve "tfplan.binary"
