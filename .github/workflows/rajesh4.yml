@@ -1,4 +1,4 @@
-name: "Terraform Infra Pipeline - Final Fixed"
+name: "Terraform Infra Pipeline -cancel"
 
 on:
   workflow_dispatch:
