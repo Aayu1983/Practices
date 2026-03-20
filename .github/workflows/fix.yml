@@ -1,4 +1,4 @@
-name : "Terraform infra pipeline for multi stage"
+name : "Terraform infra fix"
 
 on:
  # Drives branch‑selection logic, environment‑level secrets, and approval workflows 
