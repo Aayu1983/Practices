@@ -1,0 +1,36 @@
+name: "Main Multi-Env Infrastructure"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Select Environment"
+        required: true
+        type: choice
+        options: [uat, sit, production, drhub]
+      working_directory:
+        description: "Terraform folder path"
+        required: true
+        default: "dr/rg"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan_stage:
+    uses: ./.github/workflows/reusable-tf-logic.yml
+    with:
+      target_env: ${{ github.event.inputs.target_env }}
+      working_directory: ${{ github.event.inputs.working_directory }}
+      is_apply: false
+    secrets: inherit # Saare secrets automatically pass ho jayenge
+
+  apply_stage:
+    needs: plan_stage
+    uses: ./.github/workflows/reusable-tf-logic.yml
+    with:
+      target_env: ${{ github.event.inputs.target_env }}
+      working_directory: ${{ github.event.inputs.working_directory }}
+      is_apply: true
+    secrets: inherit
