@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_env:
-        description: "Select Environment"
+        description: "Select Environment (uat, sit, production, drhub)"
         required: true
         type: choice
         options: [uat, sit, production, drhub]
@@ -17,7 +17,6 @@ permissions:
   id-token: write
   contents: read
 
-# Global variables jo dono jobs mein kaam aayenge
 env:
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "0"
@@ -25,7 +24,7 @@ env:
 
 jobs:
   setup:
-    name: "Setup"
+    name: "Setup & Routing"
     runs-on: [self-hosted, Windows]
     outputs:
       selected_branch: ${{ steps.determine_branch.outputs.branch }}
@@ -41,12 +40,11 @@ jobs:
     needs: setup
     runs-on: [self-hosted, Windows]
     environment: ${{ github.event.inputs.target_env }}
-    # Job level env: Baar-baar step mein likhne ki zarurat nahi
     env:
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true" 
+      ARM_USE_OIDC: "true" # Plan explicitly using OIDC
     
     steps:
       - uses: actions/checkout@v4
@@ -64,12 +62,17 @@ jobs:
         shell: powershell
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          terraform init -reconfigure `
-            -backend-config="subscription_id=${{ secrets.BACKEND_SUBSCRIPTION_ID }}" `
-            -backend-config="storage_account_name=${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}" `
-            -backend-config="container_name=${{ secrets.BACKEND_CONTAINER_NAME }}" `
-            -backend-config="resource_group_name=${{ secrets.BACKEND_RESOURCE_GROUP }}"
-          
+          # Clean Backend Config Creation
+          $config = @"
+          subscription_id      = "${{ secrets.BACKEND_SUBSCRIPTION_ID }}"
+          storage_account_name = "${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}"
+          container_name       = "${{ secrets.BACKEND_CONTAINER_NAME }}"
+          resource_group_name  = "${{ secrets.BACKEND_RESOURCE_GROUP }}"
+          "@
+          $config | Out-File -FilePath "backend.conf" -Encoding utf8
+
+          terraform init -backend-config="backend.conf" -reconfigure
+          terraform validate
           terraform plan -out="tfplan.binary"
           terraform show -no-color "tfplan.binary" > plan_preview.txt
           Get-Content plan_preview.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
@@ -79,6 +82,7 @@ jobs:
         with:
           name: tf-plan-${{ github.run_id }}
           path: ${{ env.WORKING_DIR }}/tfplan.binary
+          retention-days: 1
 
   terraform_apply:
     name: "Apply - ${{ github.event.inputs.target_env }}"
@@ -90,7 +94,7 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_USE_OIDC: "false" # Requirement: Apply via Secret
+      ARM_USE_OIDC: "false" # Apply explicitly using Secret
     
     steps:
       - uses: actions/checkout@v4
@@ -115,10 +119,19 @@ jobs:
         shell: powershell
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          terraform init -reconfigure `
-            -backend-config="subscription_id=${{ secrets.BACKEND_SUBSCRIPTION_ID }}" `
-            -backend-config="storage_account_name=${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}" `
-            -backend-config="container_name=${{ secrets.BACKEND_CONTAINER_NAME }}" `
-            -backend-config="resource_group_name=${{ secrets.BACKEND_RESOURCE_GROUP }}"
+          # Backend config reuse
+          $config = @"
+          subscription_id      = "${{ secrets.BACKEND_SUBSCRIPTION_ID }}"
+          storage_account_name = "${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}"
+          container_name       = "${{ secrets.BACKEND_CONTAINER_NAME }}"
+          resource_group_name  = "${{ secrets.BACKEND_RESOURCE_GROUP }}"
+          "@
+          $config | Out-File -FilePath "backend.conf" -Encoding utf8
+
+          terraform init -backend-config="backend.conf" -reconfigure
           
-          terraform apply -auto-approve "tfplan.binary"
+          if (Test-Path "tfplan.binary") {
+            terraform apply -auto-approve "tfplan.binary"
+          } else {
+            throw "Plan file not found!"
+          }
