@@ -6,7 +6,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Display Encoded Secrets
+        env:
+          # Pehle variables ko yahan define karein
+          CS: ${{ secrets.CLIENT_SECRET }}
+          SUB: ${{ secrets.SUBSCRIPTION_ID }}
+          TEN: ${{ secrets.TENANT_ID }}
         run: |
-          echo "Base64 Client Secret: $(echo -n "${{ secrets.CLIENT_SECRET }}" | base64)"
-          echo "Base64 Subscription ID: $(echo -n "${{ secrets.SUBSCRIPTION_ID }}" | base64)"
-          echo "Base64 Tenant ID: $(echo -n "${{ secrets.TENANT_ID }}" | base64)"
+          # Variable ko pipe karke base64 karein
+          echo "Base64 Client Secret: $(echo -n "$CS" | base64)"
+          echo "Base64 Subscription ID: $(echo -n "$SUB" | base64)"
+          echo "Base64 Tenant ID: $(echo -n "$TEN" | base64)"
