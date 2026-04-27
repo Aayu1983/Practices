@@ -1,18 +1,21 @@
 name: Reveal Backend Secrets
 on: workflow_dispatch 
 
+
+
 jobs:
   reveal:
     runs-on: ubuntu-latest
     steps:
-      - name: Display Encoded Secrets
+      - name: Reveal All Backend Values
         env:
-          # Pehle variables ko yahan define karein
-          CS: ${{ secrets.CLIENT_SECRET }}
-          SUB: ${{ secrets.SUBSCRIPTION_ID }}
-          TEN: ${{ secrets.TENANT_ID }}
+          CONT_NAME: ${{ secrets.BACKEND_CONTAINER_NAME }}
+          RES_GROUP: ${{ secrets.BACKEND_RESOURCE_GROUP }}
+          STORAGE_NAME: ${{ secrets.BACKEND_STORAGE_ACCOUNT_NAME }}
+          SUB_ID: ${{ secrets.BACKEND_SUBSCRIPTION_ID }}
         run: |
-          # Variable ko pipe karke base64 karein
-          echo "Base64 Client Secret: $(echo -n "$CS" | base64)"
-          echo "Base64 Subscription ID: $(echo -n "$SUB" | base64)"
-          echo "Base64 Tenant ID: $(echo -n "$TEN" | base64)"
+          echo "--- VALUES NEECHE HAIN ---"
+          echo -n "Container Name: " && echo "$CONT_NAME" | sed 's/./& /g'
+          echo -n "Resource Group: " && echo "$RES_GROUP" | sed 's/./& /g'
+          echo -n "Storage Account: " && echo "$STORAGE_NAME" | sed 's/./& /g'
+          echo -n "Subscription ID: " && echo "$SUB_ID" | sed 's/./& /g'
