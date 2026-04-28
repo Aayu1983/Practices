@@ -1,4 +1,4 @@
-name: Terraform Deployment
+name: Terraform Deployment by container
 
 on:
   workflow_dispatch:
