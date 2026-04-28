@@ -31,11 +31,16 @@ env:
   ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}  
   ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  # --- OIDC & Auth Flags ---
+  ARM_USE_OIDC: true
+  ARM_USE_MSI: false
+  ARM_USE_AZURECLI: false
+  # -------------------------
   TF_INPUT: "0"
   TF_IN_AUTOMATION: "true"
 
 permissions:
-  id-token: write
+  id-token: write  # Critical for OIDC
   contents: read
 
 jobs:
