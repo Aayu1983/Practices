@@ -43,7 +43,7 @@ permissions:
 jobs:
   setup:
     name: "Evaluate Environment Branch Rule"
-    runs-on: [windows-latest]
+    runs-on: windows-latest
     outputs:
       selected_branch: ${{ steps.determine_branch.outputs.branch }}
     steps:
@@ -64,7 +64,7 @@ jobs:
     name: "Plan - ${{ github.event.inputs.target_env }}"
     needs: setup
     environment: ${{ github.event.inputs.target_env }}
-    runs-on: [self-hosted, Windows]
+    runs-on: windows-latest
     outputs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
