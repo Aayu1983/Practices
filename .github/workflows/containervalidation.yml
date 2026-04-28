@@ -20,6 +20,7 @@ on:
         required: true
         type: choice
         options: [
+           dr/rg
            AddRouteTableSpoke
            Carrix_drhubinfra/env/dr
            Carrix_drspokeinfra/env/prod
