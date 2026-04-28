@@ -20,10 +20,8 @@ on:
         required: true
         type: choice
         options: [
-           dr/rg
-           
-        ]
-          
+           dr/rg        
+        ]       
 
 # Global Environment Variables
 env:
