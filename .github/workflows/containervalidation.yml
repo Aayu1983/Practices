@@ -21,20 +21,7 @@ on:
         type: choice
         options: [
            dr/rg
-           AddRouteTableSpoke
-           Carrix_drhubinfra/env/dr
-           Carrix_drspokeinfra/env/prod
-           Carrix_hub_resources/AzureFirewall
-           Carrix_hub_resources/AzureFirewallDiagnosticsettings
-           Carrix_hub_resources/NatGateway
-           Carrix_hub_resources/VirtualMachines
-           Carrix_hub_resources/FirewallPolicyRules
-           Carrix_hub_resources/LogAnalyticsWorkspace
-           Carrix_hub_resources/PublicIP
-           Carrix_hub_resources/FirewallPolicy
-           Carrix_hub_resources/AddRouteTable
-           Carrix_prodinfra/env/prod
-           diag_proddrnsg
+           
         ]
           
 
