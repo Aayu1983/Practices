@@ -1,4 +1,4 @@
-name: Terraform Deployment by a container
+name: Terraform Deployment
 
 on:
   workflow_dispatch:
@@ -19,9 +19,8 @@ on:
         description: "Terraform folder path"
         required: true
         type: choice
-        options: [
-           dr/rg        
-        ]       
+        options: 
+          - "dr/rg"
 
 # Global Environment Variables
 env:
@@ -35,7 +34,7 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
   TF_INPUT: "0"
   TF_IN_AUTOMATION: "true"
-  
+
 permissions:
   id-token: write
   contents: read
@@ -57,7 +56,7 @@ jobs:
           } else {
             $branch = $env_input
           }
-          echo "branch=$branch" >> $env:GITHUB_OUTPUT
+          "branch=$branch" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Selected branch is: $branch"
 
   terraform_plan:
@@ -69,6 +68,12 @@ jobs:
       plan_commit_sha: ${{ steps.capture_sha.outputs.sha }}
       plan_artifact_name: ${{ steps.name_artifact.outputs.art_name }}
     steps:
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+          terraform_wrapper: false
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -79,13 +84,14 @@ jobs:
         shell: powershell
         run: |
           $sha = (git rev-parse HEAD).Trim()
-          echo "sha=$sha" >> $env:GITHUB_OUTPUT
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Name Artifact
         id: name_artifact
         shell: powershell
         run: |
-          echo "art_name=tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}" >> $env:GITHUB_OUTPUT
+          $art_name = "tf-plan-${{ github.event.inputs.target_env }}-${{ github.run_id }}"
+          "art_name=$art_name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Initialize Terraform Backend
         shell: powershell
